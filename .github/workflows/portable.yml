@@ -17,7 +17,7 @@ jobs:
       - name: Compilar
         shell: cmd
         run: build.cmd
-      - name: Probar protocolo HID++
+      - name: Probar protocolos de batería
         shell: cmd
         run: test.cmd
       - uses: actions/upload-artifact@v4

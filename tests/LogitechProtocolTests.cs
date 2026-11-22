@@ -18,8 +18,10 @@ internal static class LogitechProtocolTests
             TestNonMouseSkipped();
             TestCoarseLevelSkipped();
             TestInvalidPercentageSkipped();
+            TestLegacyRegister();
+            TestVendorBatteryReports();
             TestWindowsTransport();
-            Console.WriteLine("Logitech HID++: 7 pruebas aprobadas.");
+            Console.WriteLine("HID: 9 pruebas aprobadas.");
             return 0;
         }
         catch (InvalidOperationException error)
@@ -40,6 +42,10 @@ internal static class LogitechProtocolTests
         Verify(LogitechBattery.ReceiverName(@"\\?\hid#vid_046d&pid_c548&mi_00&col02#instance") == null &&
             LogitechBattery.ReceiverName(@"\\?\hid#vid_046d&pid_c534&mi_02&col02#instance") == null,
             "Se aceptó una interfaz o un receptor fuera del catálogo.");
+        Verify(LogitechBattery.ReceiverName(@"\\?\hid#vid_046d&pid_c539&mi_02&col02#instance") == "LIGHTSPEED" &&
+            LogitechBattery.ReceiverName(@"\\?\hid#vid_046d&pid_c534&mi_01&col02#instance") == "Nano" &&
+            LogitechBattery.ReceiverName(@"\\?\hid#vid_046d&pid_c232&mi_01&col02#instance") == null,
+            "El catálogo de LIGHTSPEED o Nano no coincide.");
     }
 
     private static void TestUnifiedPercentage()
@@ -76,6 +82,55 @@ internal static class LogitechProtocolTests
         Verify(Read(replies) == null, "Se aceptó un valor inválido o desconocido del dispositivo.");
     }
 
+    private static void TestLegacyRegister()
+    {
+        byte pairedKind = 8;
+        Func<byte[], byte[]> pairing = request =>
+        {
+            Verify(request[0] == 0x10 && request[1] == 0xFF && request[2] == 0x83 &&
+                request[3] == 0xB5 && request[4] == 0x21, "Consulta de identificación antigua incorrecta.");
+            var reply = new byte[20];
+            reply[4] = 0x21;
+            reply[11] = pairedKind;
+            return reply;
+        };
+        int reads = 0;
+        Func<byte[], byte[]> charge = request =>
+        {
+            reads++;
+            Verify(request[0] == 0x10 && request[1] == 2 && request[2] == 0x81 &&
+                request[3] == 0x0D, "Consulta de carga antigua incorrecta.");
+            return new byte[] { 0x10, 2, 0x81, 0x0D, 78, 0, 0 };
+        };
+        MouseReading reading = LogitechBattery.ReadLegacySlot(2, "receiver", "Nano", pairing, charge);
+        Verify(reading != null && reading.Percent == 78 && reading.Connection == "Nano",
+            "No se obtuvo el porcentaje HID++ 1.0 del trackball.");
+        pairedKind = 1;
+        Verify(LogitechBattery.ReadLegacySlot(2, "receiver", "Nano", pairing, charge) == null && reads == 1,
+            "Se consultó la batería de un teclado en un receptor Nano.");
+    }
+
+    private static void TestVendorBatteryReports()
+    {
+        Verify(VendorMouseBattery.DecodeSteelSeries(new byte[] { 0, 0xD2, 0x84 }, true) == 15 &&
+            VendorMouseBattery.DecodeSteelSeries(new byte[] { 0xD2, 0 }, true) == null &&
+            VendorMouseBattery.DecodeSteelSeries(new byte[] { 0x40, 0xFF }, true) == null &&
+            VendorMouseBattery.DecodeSteelSeries(new byte[] { 0xAA, 54 }, false) == 54,
+            "Lectura SteelSeries inválida.");
+        Verify(VendorMouseBattery.DecodeHyperX(new byte[] { 0x51, 2, 0 }) == 0 &&
+            VendorMouseBattery.DecodeHyperX(new byte[] { 0x53, 1, 1 }) == null, "Lectura HyperX inválida.");
+        Verify(VendorMouseBattery.DecodeSinowealth(new byte[] { 0, 0xA1, 0, 2, 2, 0, 0x83, 0, 64 }) == 64 &&
+            VendorMouseBattery.DecodeSinowealth(new byte[] { 0xA4, 0, 2, 2, 0, 0x83, 0, 64 }) == null,
+            "Lectura Sinowealth inválida.");
+        Verify(VendorMouseBattery.DecodeCorsair(new byte[] { 0, 1, 2, 0, 0x26, 2 }) == 55 &&
+            VendorMouseBattery.DecodeCorsair(new byte[] { 1, 2, 5, 0x26, 2 }) == null,
+            "Lectura Corsair inválida.");
+        var compx = new byte[] { 8, 4, 0, 0, 0, 0, 75, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFE };
+        Verify(VendorMouseBattery.DecodeCompx(compx) == 75, "Lectura Compx inválida.");
+        compx[16]++;
+        Verify(VendorMouseBattery.DecodeCompx(compx) == null, "Se aceptó una suma de comprobación Compx inválida.");
+    }
+
     private static void TestWindowsTransport()
     {
         string pipe = "HuBattery-Test-" + Guid.NewGuid().ToString("N");
@@ -99,20 +154,20 @@ internal static class LogitechProtocolTests
             client.Connect(3000);
 
             using (var file = new SafeFileHandle(client.SafePipeHandle.DangerousGetHandle(), false))
-            using (var channel = new LogitechChannel(file))
+            using (var channel = new HidReportChannel(file))
             {
                 var request = new byte[20];
                 request[0] = 0x11;
                 request[1] = 2;
                 request[3] = 1;
-                byte[] reply = channel.Exchange(request);
+                byte[] reply = LogitechBattery.Exchange(channel, request);
                 Verify(reply != null && reply[4] == 83, "No se filtró la respuesta de otra ranura.");
                 request[3] = 2;
                 var clock = Stopwatch.StartNew();
-                Verify(channel.Exchange(request) == null && clock.ElapsedMilliseconds < 2000,
+                Verify(LogitechBattery.Exchange(channel, request) == null && clock.ElapsedMilliseconds < 2000,
                     "Una lectura sin respuesta no terminó a tiempo.");
                 request[3] = 3;
-                reply = channel.Exchange(request);
+                reply = LogitechBattery.Exchange(channel, request);
                 Verify(reply != null && reply[4] == 37, "El canal no se recuperó después de cancelar una lectura.");
             }
             simulated.GetAwaiter().GetResult();

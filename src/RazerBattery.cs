@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -118,7 +117,7 @@ internal static class RazerBattery
             request[8] = GetBattery;
             request[89] = Checksum(request);
 
-            if (!HidD_SetFeature(handle, request, request.Length))
+            if (!HidBattery.SetFeature(handle, request))
                 return null;
 
             for (int attempt = 0; attempt < 4; attempt++)
@@ -146,7 +145,4 @@ internal static class RazerBattery
         return value;
     }
 
-    [DllImport("hid.dll")]
-    [return: MarshalAs(UnmanagedType.U1)]
-    private static extern bool HidD_SetFeature(SafeFileHandle device, byte[] report, int length);
 }

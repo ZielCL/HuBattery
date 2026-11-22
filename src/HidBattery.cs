@@ -89,6 +89,11 @@ internal static class HidBattery
         return HidD_GetFeature(device, report, report.Length);
     }
 
+    internal static bool SetFeature(SafeFileHandle device, byte[] report)
+    {
+        return HidD_SetFeature(device, report, report.Length);
+    }
+
     [StructLayout(LayoutKind.Explicit, Size = 64)]
     internal struct Caps
     {
@@ -114,6 +119,9 @@ internal static class HidBattery
     [DllImport("hid.dll")]
     [return: MarshalAs(UnmanagedType.U1)]
     private static extern bool HidD_GetFeature(SafeFileHandle device, [In, Out] byte[] report, int length);
+    [DllImport("hid.dll")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    private static extern bool HidD_SetFeature(SafeFileHandle device, byte[] report, int length);
     [DllImport("hid.dll")]
     [return: MarshalAs(UnmanagedType.U1)]
     private static extern bool HidD_GetPreparsedData(SafeFileHandle device, out IntPtr descriptor);

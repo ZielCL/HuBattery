@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
@@ -13,56 +14,135 @@ internal static class LogitechBattery
     private const byte ChargePercentageSupported = 0x02;
     internal const int ReportLength = 20;
     internal const byte ReportId = 0x11;
+    private const byte ShortReportId = 0x10;
+    private const int ShortReportLength = 7;
 
     internal static IEnumerable<MouseReading> Read(string[] paths)
     {
-        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string path in paths)
+        foreach (var receiver in paths.Where(path => ReceiverName(path) != null)
+            .GroupBy(ReceiverKey, StringComparer.OrdinalIgnoreCase))
         {
-            string receiver = ReceiverName(path);
-            if (receiver == null)
-                continue;
-
-            using (SafeFileHandle handle = HidBattery.Open(path, 0xC0000000, 0x40000000))
+            string name = ReceiverName(receiver.First());
+            string shortPath = null;
+            string longPath = null;
+            foreach (string path in receiver)
             {
-                HidBattery.Caps caps;
-                if (!HidBattery.TryGetCaps(handle, out caps) || caps.UsagePage != 0xFF00 || caps.Usage != 2 ||
-                    caps.InputLength != ReportLength || caps.OutputLength != ReportLength)
-                    continue;
-
-                Guid? container = DeviceNodes.ContainerForHidPath(path);
-                string key = container.HasValue ? container.Value.ToString() : path;
-                if (!found.Add(key))
-                    continue;
-
-                using (var channel = new LogitechChannel(handle))
+                using (SafeFileHandle handle = HidBattery.Open(path))
                 {
-                    var protocol = new Protocol(channel.Exchange);
-                    for (byte slot = 1; slot <= 6; slot++)
-                    {
-                        MouseReading reading = protocol.ReadSlot(slot, key, receiver);
-                        if (reading != null)
-                            yield return reading;
-                    }
+                    HidBattery.Caps caps;
+                    if (!HidBattery.TryGetCaps(handle, out caps) || caps.UsagePage != 0xFF00)
+                        continue;
+                    if (caps.Usage == 1 && caps.InputLength == ShortReportLength && caps.OutputLength == ShortReportLength)
+                        shortPath = shortPath ?? path;
+                    if (caps.Usage == 2 && caps.InputLength == ReportLength && caps.OutputLength == ReportLength)
+                        longPath = longPath ?? path;
+                }
+            }
+
+            using (SafeFileHandle longHandle = OpenChannel(longPath))
+            using (SafeFileHandle shortHandle = OpenChannel(shortPath))
+            using (var longChannel = longHandle == null ? null : new HidReportChannel(longHandle))
+            using (var shortChannel = shortHandle == null ? null : new HidReportChannel(shortHandle))
+            {
+                if (longChannel == null)
+                    continue;
+
+                var protocol = new Protocol(request => Exchange(longChannel, request));
+                bool legacy = shortChannel != null && (name == "Unifying" || name == "Nano");
+                int slots = name == "Nano" ? 2 : 6;
+                for (byte slot = 1; slot <= slots; slot++)
+                {
+                    MouseReading reading = protocol.ReadSlot(slot, receiver.Key, name);
+                    if (reading == null && legacy)
+                        reading = ReadLegacySlot(slot, receiver.Key, name, request => shortChannel.Send(request)
+                            ? longChannel.Receive(ReportLength, reply => ReplyMatches(reply, ReportId, request))
+                            : null, request => shortChannel.Exchange(request, ShortReportLength,
+                                reply => ReplyMatches(reply, ShortReportId, request)));
+                    if (reading != null)
+                        yield return reading;
                 }
             }
         }
     }
 
+    private static SafeFileHandle OpenChannel(string path)
+    {
+        if (path == null)
+            return null;
+        SafeFileHandle handle = HidBattery.Open(path, 0xC0000000, 0x40000000);
+        if (!handle.IsInvalid)
+            return handle;
+        handle.Dispose();
+        return null;
+    }
+
+    private static string ReceiverKey(string path)
+    {
+        Guid? container = DeviceNodes.ContainerForHidPath(path);
+        if (container.HasValue)
+            return container.Value.ToString();
+
+        // Windows uses the final element of the instance segment to distinguish HID collections.
+        string[] parts = path.Split('#');
+        int interfaceStart = parts[1].IndexOf("&MI_", StringComparison.OrdinalIgnoreCase);
+        int collection = parts[2].LastIndexOf('&');
+        return parts[1].Substring(0, interfaceStart + 6) + "#" +
+            (collection < 0 ? parts[2] : parts[2].Substring(0, collection));
+    }
+
     internal static string ReceiverName(string path)
     {
         const string prefix = @"\\?\HID#VID_046D&PID_";
-        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            (path.IndexOf("&MI_02&", StringComparison.OrdinalIgnoreCase) != prefix.Length + 4 &&
-             path.IndexOf("&MI_02#", StringComparison.OrdinalIgnoreCase) != prefix.Length + 4))
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || path.Length < prefix.Length + 11)
             return null;
+        string interfaceTag = path.Substring(prefix.Length + 4, 7).ToUpperInvariant();
+        if (interfaceTag[6] != '#' && interfaceTag[6] != '&')
+            return null;
+        string number = interfaceTag.Substring(0, 6);
         switch (path.Substring(prefix.Length, 4).ToUpperInvariant())
         {
-            case "C548": return "Logi Bolt";
+            case "C548": return number == "&MI_02" ? "Logi Bolt" : null;
             case "C52B":
-            case "C532": return "Unifying";
+            case "C532": return number == "&MI_02" ? "Unifying" : null;
+            case "C539": case "C53A": case "C53D": case "C53F":
+            case "C541": case "C545": case "C547": case "C54D":
+                return number == "&MI_02" ? "LIGHTSPEED" : null;
+            case "C518": case "C51A": case "C51B": case "C521": case "C525": case "C526":
+            case "C52E": case "C52F": case "C531": case "C534": case "C535": case "C537":
+                return number == "&MI_01" ? "Nano" : null;
             default: return null;
         }
+    }
+
+    internal static byte[] Exchange(HidReportChannel channel, byte[] request)
+    {
+        byte[] reply = channel.Exchange(request, ReportLength, received => ReplyMatches(received, ReportId, request) ||
+            (received[0] == ReportId && received[1] == request[1] && received[2] == 0xFF &&
+             received[3] == request[2] && received[4] == request[3]));
+        return reply != null && ReplyMatches(reply, ReportId, request) ? reply : null;
+    }
+
+    private static bool ReplyMatches(byte[] reply, byte reportId, byte[] request)
+    {
+        return reply[0] == reportId && reply[1] == request[1] && reply[2] == request[2] && reply[3] == request[3];
+    }
+
+    internal static MouseReading ReadLegacySlot(byte slot, string id, string connection,
+        Func<byte[], byte[]> readPairing, Func<byte[], byte[]> readRegister)
+    {
+        byte selector = (byte)(0x20 + slot - 1);
+        byte[] paired = readPairing(new byte[] { ShortReportId, 0xFF, 0x83, 0xB5, selector, 0, 0 });
+        if (paired == null || paired[4] != selector)
+            return null;
+        int kind = paired[11] & 15;
+        if (kind != 2 && kind != 8)
+            return null;
+
+        byte[] charge = readRegister(new byte[] { ShortReportId, slot, 0x81, 0x0D, 0, 0, 0 });
+        if (charge == null || charge[4] > 100)
+            return null;
+        string name = kind == 8 ? "Trackball Logitech" : "Mouse Logitech";
+        return new MouseReading(id + ":" + slot, name + " " + slot, charge[4], connection);
     }
 
     internal sealed class Protocol

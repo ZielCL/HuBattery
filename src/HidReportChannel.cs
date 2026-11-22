@@ -4,36 +4,38 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Win32.SafeHandles;
 
-internal sealed class LogitechChannel : IDisposable
+internal sealed class HidReportChannel : IDisposable
 {
     private const int Pending = 997;
     private const int WriteTimeoutMs = 120;
-    private const int ReplyTimeoutMs = 220;
     private readonly SafeFileHandle handle;
     private readonly ManualResetEvent completed = new ManualResetEvent(false);
 
-    internal LogitechChannel(SafeFileHandle handle)
+    internal HidReportChannel(SafeFileHandle handle)
     {
         this.handle = handle;
     }
 
-    internal byte[] Exchange(byte[] request)
+    internal byte[] Exchange(byte[] request, int length, Func<byte[], bool> accepts, int timeoutMs = 220)
     {
-        if (!Transfer(request, true, WriteTimeoutMs))
-            return null;
+        return Send(request) ? Receive(length, accepts, timeoutMs) : null;
+    }
 
+    internal bool Send(byte[] request)
+    {
+        return Transfer(request, true, WriteTimeoutMs);
+    }
+
+    internal byte[] Receive(int length, Func<byte[], bool> accepts, int timeoutMs = 220)
+    {
         var clock = Stopwatch.StartNew();
-        var reply = new byte[LogitechBattery.ReportLength];
+        var reply = new byte[length];
         int remaining;
-        while ((remaining = ReplyTimeoutMs - (int)clock.ElapsedMilliseconds) > 0)
+        while ((remaining = timeoutMs - (int)clock.ElapsedMilliseconds) > 0)
         {
             if (!Transfer(reply, false, remaining))
                 break;
-            if (reply[0] != LogitechBattery.ReportId || reply[1] != request[1])
-                continue;
-            if (reply[2] == 0xFF && reply[3] == request[2] && reply[4] == request[3])
-                break;
-            if (reply[2] == request[2] && reply[3] == request[3])
+            if (accepts(reply))
                 return reply;
         }
         return null;

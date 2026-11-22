@@ -18,11 +18,14 @@ El indicador se coloca junto a la bandeja en la barra de tareas principal horizo
 | --- | --- | --- |
 | Receptor USB Razer DeathAdder V3 HyperSpeed `1532:00C5` | Consulta HID de Razer | Verificado en Windows con hardware |
 | Otros Razer USB del [catálogo](src/RazerBattery.cs) | Consulta HID por modelo | Implementado según referencias, pendiente de pruebas en cada modelo |
-| Logitech Logi Bolt `046D:C548` y Unifying `046D:C52B` / `046D:C532` | HID++ 2.0 en mouses y trackballs que reportan un porcentaje | Disponible en [la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.2.0-beta.1), con pruebas de protocolo y pendiente de pruebas en hardware |
+| Logitech Logi Bolt, Unifying, LIGHTSPEED y Nano | HID++ 2.0 en mouses y trackballs. HID++ 1.0 por Unifying y Nano cuando el receptor identifica el dispositivo y este ofrece una carga numérica | Beta. [IDs de receptores](src/LogitechBattery.cs). Pendiente de pruebas con esos receptores físicos |
+| SteelSeries Aerox 3, 5 y 9 Wireless y Rival 3 Wireless (incluye Gen 2) | Receptores de 2,4 GHz del catálogo. Aerox puede informar en pasos de 5 %. Rival requiere una respuesta con el código de la consulta | Beta. Pendiente de pruebas en HuBattery con hardware |
+| HyperX Pulsefire Haste 2 Wireless, Glorious Model O Wireless y LAMZU Maya X 8K | Consulta HID del receptor de 2,4 GHz | Beta. Pendiente de pruebas en HuBattery con hardware |
+| Corsair Dark Core RGB Pro SE y Sabre V2 Pro Ultralight, Hitscan Hyperlight, Pulsar X2 V2 Mini y X2 CrazyLight Mini, ATK X1 Pro, VXE R1 Pro Max y VGN Dragonfly 4K | Lectura por receptores de 2,4 GHz identificados en el [catálogo](src/VendorMouseBattery.cs) | Beta. Pendiente de pruebas en HuBattery con hardware |
 | Mouse Bluetooth | Lee el porcentaje si Windows lo publica para el dispositivo | Pendiente de pruebas con hardware Bluetooth |
 | Mouse con campo HID estándar Battery Strength | Lee el campo si existe en un reporte de características de la colección del mouse | Pendiente de pruebas con hardware compatible |
 
-Un receptor de 2,4 GHz puede usar un protocolo propio aunque Windows reconozca el mouse. Si la barra muestra `—`, HuBattery todavía no recibió un porcentaje válido. Logitech LIGHTSPEED, receptores Nano, dispositivos exclusivamente HID++ 1.0, SteelSeries, Corsair y otros receptores propietarios siguen pendientes.
+Un receptor de 2,4 GHz puede usar un protocolo propio aunque Windows reconozca el mouse. Si la barra muestra `—`, HuBattery todavía no recibió un porcentaje válido. En dispositivos Logitech que solo informan estados como «bajo» o «alto», no se inventa un porcentaje. Los equipos que usan otros receptores, interfaces o protocolos requieren una prueba y, en algunos casos, un lector adicional.
 
 ## Cómo funciona
 
@@ -30,13 +33,14 @@ Un receptor de 2,4 GHz puede usar un protocolo propio aunque Windows reconozca e
 - [DeviceNodes.cs](src/DeviceNodes.cs) identifica los dispositivos y busca el nivel que publica Windows para ratones Bluetooth. [Guía de batería Bluetooth de Microsoft](https://learn.microsoft.com/windows-hardware/design/accessory-guidelines/bluetooth-accessory-guidelines/bluetooth-accessory-guidelines-battery-profiles-services).
 - [HidBattery.cs](src/HidBattery.cs) consulta solo el campo HID Battery Strength cuando el propio descriptor del mouse lo declara. [API de valores HID de Microsoft](https://learn.microsoft.com/windows-hardware/drivers/ddi/hidpi/nf-hidpi-hidp_getspecificvaluecaps).
 - [RazerBattery.cs](src/RazerBattery.cs) envía únicamente la consulta de nivel de batería a los identificadores USB del catálogo. [Referencia de protocolo de OpenRazer](https://github.com/openrazer/openrazer/blob/master/driver/razermouse_driver.c) y [referencia de identificadores USB](https://github.com/xzeldon/razer-battery-report#supported-mice).
-- [LogitechBattery.cs](src/LogitechBattery.cs) identifica cada mouse o trackball en las ranuras del receptor y consulta el porcentaje con Unified Battery `0x1004` o Battery Status `0x1000`. Omite dispositivos que solo informan niveles como «bajo» o «alto». [Referencias de Solaar](https://github.com/pwr-Solaar/Solaar/blob/master/lib/logitech_receiver/hidpp20.py) y [del controlador HID++ de Linux](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-logitech-hidpp.c).
+- [LogitechBattery.cs](src/LogitechBattery.cs) identifica cada mouse o trackball en las ranuras del receptor y consulta el porcentaje con Unified Battery `0x1004`, Battery Status `0x1000` o el registro de carga HID++ 1.0 `0x0D`. [Referencias de Solaar](https://github.com/pwr-Solaar/Solaar/tree/master/lib/logitech_receiver) y [del controlador HID++ de Linux](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-logitech-hidpp.c).
+- [VendorMouseBattery.cs](src/VendorMouseBattery.cs) verifica el VID/PID y la colección HID de cada receptor antes de consultar su batería. Valida la respuesta, incluida la suma de comprobación cuando el protocolo la define. [HaloBattery](https://github.com/HeyOkay/HaloBattery/blob/main/docs/protocols.md), [alloyctl](https://alloy.szymon-wilczek.me/protocol/steelseries-aerox3-wireless.html) y [ngenuity-linux-cli](https://github.com/PMarinov1994/ngenuity-linux-cli) documentan las consultas por familia.
 
 ## Compilación
 
 En Windows 10 de 64 bits, versión 1607 o posterior, o Windows 11, ejecuta `build.cmd`. El resultado queda en `dist\HuBattery.exe`. La compilación usa el compilador de .NET Framework incluido en Windows.
 
-Ejecuta `test.cmd` para probar el protocolo Logitech con respuestas simuladas. Puedes compilar en otra carpeta con `build.cmd dist\beta` mientras la versión habitual sigue abierta.
+Ejecuta `test.cmd` para probar los protocolos con respuestas simuladas y comprobar el transporte asíncrono de Windows. Puedes compilar en otra carpeta con `build.cmd dist\beta` mientras la versión habitual sigue abierta.
 
 ## Reportar un mouse
 
@@ -44,5 +48,6 @@ Abre un [issue](https://github.com/ZielCL/HuBattery/issues/new) con marca y mode
 
 ## Avance
 
+- **v0.3.0-beta.1**. Añade Logitech LIGHTSPEED y Nano, lectura HID++ 1.0 cuando el dispositivo reporta un porcentaje y receptores específicos de SteelSeries, HyperX, Corsair, Glorious, LAMZU, Hitscan, Pulsar, ATK/VXE y VGN. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.3.0-beta.1).
 - **v0.2.0-beta.1**. Lectura experimental del porcentaje de mouses y trackballs Logitech HID++ 2.0 por Logi Bolt y Unifying.
 - **v0.1.0**. Indicador portátil de un solo mouse, selección cuando hay varias lecturas y detección por Bluetooth de Windows, HID estándar y catálogo USB Razer.

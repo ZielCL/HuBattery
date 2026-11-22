@@ -23,7 +23,8 @@ internal static class MouseBattery
     internal static MouseReading[] Read()
     {
         string[] paths = DeviceNodes.HidPaths();
-        return RazerBattery.Read(paths).Concat(LogitechBattery.Read(paths)).Concat(ReadBluetooth()).Concat(HidBattery.Read(paths))
+        return RazerBattery.Read(paths).Concat(LogitechBattery.Read(paths)).Concat(VendorMouseBattery.Read(paths))
+            .Concat(ReadBluetooth()).Concat(HidBattery.Read(paths))
             .GroupBy(reading => reading.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderBy(reading => reading.Name, StringComparer.CurrentCultureIgnoreCase)
