@@ -17,6 +17,9 @@ jobs:
       - name: Compilar
         shell: cmd
         run: build.cmd
+      - name: Probar protocolo HID++
+        shell: cmd
+        run: test.cmd
       - uses: actions/upload-artifact@v4
         with:
           name: HuBattery-Windows
@@ -38,4 +41,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$env:GITHUB_REF_NAME" HuBattery.exe --verify-tag --repo "$env:GITHUB_REPOSITORY" --title "$env:GITHUB_REF_NAME" --generate-notes
+          $options = @()
+          if ($env:GITHUB_REF_NAME -match '-') { $options += '--prerelease' }
+          gh release create "$env:GITHUB_REF_NAME" HuBattery.exe --verify-tag --repo "$env:GITHUB_REPOSITORY" --title "$env:GITHUB_REF_NAME" --generate-notes @options

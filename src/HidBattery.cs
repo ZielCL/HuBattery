@@ -6,7 +6,7 @@ using Microsoft.Win32.SafeHandles;
 
 internal static class HidBattery
 {
-    private const int Success = 0x00110000;
+    internal const int Success = 0x00110000;
     private const int Feature = 2;
     private const ushort DeviceControlsPage = 0x06;
     private const ushort BatteryStrength = 0x20;
@@ -69,9 +69,19 @@ internal static class HidBattery
         return null;
     }
 
-    internal static SafeFileHandle Open(string path)
+    internal static SafeFileHandle Open(string path, uint access = 0, uint flags = 0)
     {
-        return CreateFileW(path, 0, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+        return CreateFileW(path, access, 3, IntPtr.Zero, 3, flags, IntPtr.Zero);
+    }
+
+    internal static bool TryGetCaps(SafeFileHandle handle, out Caps caps)
+    {
+        caps = default(Caps);
+        IntPtr descriptor;
+        if (handle.IsInvalid || !HidD_GetPreparsedData(handle, out descriptor))
+            return false;
+        try { return HidP_GetCaps(descriptor, out caps) == Success; }
+        finally { HidD_FreePreparsedData(descriptor); }
     }
 
     internal static bool GetFeature(SafeFileHandle device, byte[] report)
@@ -80,10 +90,12 @@ internal static class HidBattery
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 64)]
-    private struct Caps
+    internal struct Caps
     {
         [FieldOffset(0)] public ushort Usage;
         [FieldOffset(2)] public ushort UsagePage;
+        [FieldOffset(4)] public ushort InputLength;
+        [FieldOffset(6)] public ushort OutputLength;
         [FieldOffset(8)] public ushort FeatureLength;
         [FieldOffset(60)] public ushort FeatureValues;
     }
