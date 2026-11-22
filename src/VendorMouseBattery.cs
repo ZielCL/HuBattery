@@ -11,11 +11,13 @@ internal static class VendorMouseBattery
     {
         internal readonly string Name;
         internal readonly Protocol Reader;
+        internal readonly string Connection;
 
-        internal Model(string name, Protocol reader)
+        internal Model(string name, Protocol reader, string connection = "USB 2,4 GHz")
         {
             Name = name;
             Reader = reader;
+            Connection = connection;
         }
     }
 
@@ -39,6 +41,9 @@ internal static class VendorMouseBattery
         { "VID_1B1C&PID_1B7F", new Model("Corsair Dark Core RGB Pro SE", Protocol.Corsair) },
         { "VID_1B1C&PID_2B2A", new Model("Corsair Sabre V2 Pro Ultralight", Protocol.Compx) },
         { "VID_3770&PID_0200", new Model("Hitscan Hyperlight", Protocol.Compx) },
+        { "VID_3554&PID_F5F7", new Model("Scyrox V8", Protocol.Compx) },
+        { "VID_3554&PID_F5F4", new Model("Scyrox V8", Protocol.Compx) },
+        { "VID_3554&PID_F5F6", new Model("Scyrox V8", Protocol.Compx, "Cable USB") },
         { "VID_3554&PID_F508", new Model("Pulsar X2 V2 Mini", Protocol.Compx) },
         { "VID_3710&PID_5406", new Model("Pulsar X2 CrazyLight Mini", Protocol.Compx) },
         { "VID_3554&PID_F58A", new Model("ATK VXE R1 Pro Max", Protocol.Compx) },
@@ -76,7 +81,7 @@ internal static class VendorMouseBattery
                 {
                     int? level = ReadSinowealth(handle);
                     if (level.HasValue && seen.Add(id))
-                        yield return new MouseReading(id, model.Name, level.Value, "USB 2,4 GHz");
+                        yield return new MouseReading(id, model.Name, level.Value, model.Connection);
                     continue;
                 }
             }
@@ -89,7 +94,7 @@ internal static class VendorMouseBattery
                 {
                     int? level = ReadOutputBattery(channel, caps, model.Reader);
                     if (level.HasValue && seen.Add(id))
-                        yield return new MouseReading(id, model.Name, level.Value, "USB 2,4 GHz");
+                        yield return new MouseReading(id, model.Name, level.Value, model.Connection);
                 }
             }
         }

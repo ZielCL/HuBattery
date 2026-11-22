@@ -22,6 +22,7 @@ El indicador se coloca junto a la bandeja en la barra de tareas principal horizo
 | SteelSeries Aerox 3, 5 y 9 Wireless y Rival 3 Wireless (incluye Gen 2) | Receptores de 2,4 GHz del catálogo. Aerox puede informar en pasos de 5 %. Rival requiere una respuesta con el código de la consulta | Beta. Pendiente de pruebas en HuBattery con hardware |
 | HyperX Pulsefire Haste 2 Wireless, Glorious Model O Wireless y LAMZU Maya X 8K | Consulta HID del receptor de 2,4 GHz | Beta. Pendiente de pruebas en HuBattery con hardware |
 | Corsair Dark Core RGB Pro SE y Sabre V2 Pro Ultralight, Hitscan Hyperlight, Pulsar X2 V2 Mini y X2 CrazyLight Mini, ATK X1 Pro, VXE R1 Pro Max y VGN Dragonfly 4K | Lectura por receptores de 2,4 GHz identificados en el [catálogo](src/VendorMouseBattery.cs) | Beta. Pendiente de pruebas en HuBattery con hardware |
+| Scyrox V8 | Receptor de 2,4 GHz `3554:F5F7` o `3554:F5F4` y cable USB `3554:F5F6`, por Compx | Beta. Pendiente de pruebas en HuBattery con hardware. [Protocolo de batería](https://github.com/Fan4Metal/mouse_tray/blob/master/mouse_tray/drivers/chipset/nordic52.py) e [IDs de S-center](https://github.com/vladkovalch/scyrox-v8-config/blob/main/scyrox_v8_config.py) |
 | Mouse Bluetooth | Lee el porcentaje si Windows lo publica para el dispositivo | Pendiente de pruebas con hardware Bluetooth |
 | Mouse con campo HID estándar Battery Strength | Lee el campo si existe en un reporte de características de la colección del mouse | Pendiente de pruebas con hardware compatible |
 
@@ -48,6 +49,7 @@ Abre un [issue](https://github.com/ZielCL/HuBattery/issues/new) con marca y mode
 
 ## Avance
 
+- **v0.3.1-beta.1**. Añade el Scyrox V8 por receptor y cable, e incorpora el icono de HuBattery al ejecutable. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.3.1-beta.1).
 - **v0.3.0-beta.1**. Añade Logitech LIGHTSPEED y Nano, lectura HID++ 1.0 cuando el dispositivo reporta un porcentaje y receptores específicos de SteelSeries, HyperX, Corsair, Glorious, LAMZU, Hitscan, Pulsar, ATK/VXE y VGN. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.3.0-beta.1).
 - **v0.2.0-beta.1**. Lectura experimental del porcentaje de mouses y trackballs Logitech HID++ 2.0 por Logi Bolt y Unifying.
 - **v0.1.0**. Indicador portátil de un solo mouse, selección cuando hay varias lecturas y detección por Bluetooth de Windows, HID estándar y catálogo USB Razer.
