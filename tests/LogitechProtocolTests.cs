@@ -27,12 +27,13 @@ internal static class LogitechProtocolTests
             TestNewMouseCatalog();
             TestHeadsetReports();
             TestBluetoothAudioClassification();
+            TestStandardBatteryPercent();
             TestIndependentSelectionAndRendering();
             TestWindowsTransport();
             TestBootUpdatePolicy();
             TestReleaseSelection();
             TestUpdateHash();
-            Console.WriteLine("HuBattery: 16 pruebas aprobadas.");
+            Console.WriteLine("HuBattery: 17 pruebas aprobadas.");
             return 0;
         }
         catch (InvalidOperationException error)
@@ -256,6 +257,18 @@ internal static class LogitechProtocolTests
             !PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{00001124-0000-1000-8000-00805f9b34fb}_VID&1234") &&
             !PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000110b-0000-1000-8000-012345678912}_VID&1234"),
             "Clasificación incorrecta de servicios de audio Bluetooth.");
+    }
+
+    private static void TestStandardBatteryPercent()
+    {
+        Verify(HidBattery.BatteryPercent(0, 0, 255, true) == 0 &&
+            HidBattery.BatteryPercent(63, 0, 255, true) == 63 &&
+            HidBattery.BatteryPercent(100, 0, 255, true) == 100 &&
+            HidBattery.BatteryPercent(101, 0, 255, true) == null &&
+            HidBattery.BatteryPercent(128, 0, 255, false) == 50 &&
+            HidBattery.BatteryPercent(12, 10, 14, false) == 50 &&
+            HidBattery.BatteryPercent(9, 10, 14, false) == null,
+            "Lectura incorrecta de carga relativa o del rango HID.");
     }
 
     private static void TestIndependentSelectionAndRendering()
