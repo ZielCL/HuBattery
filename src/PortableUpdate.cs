@@ -111,12 +111,10 @@ internal static class PortableUpdate
                 return;
             }
             catch (DirectoryNotFoundException) { return; }
-            catch (UnauthorizedAccessException) { return; }
-            catch (IOException)
-            {
-                if (attempt + 1 < attempts)
-                    Thread.Sleep(250);
-            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
+            if (attempt + 1 < attempts)
+                Thread.Sleep(250);
         }
     }
 
