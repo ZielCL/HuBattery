@@ -13,6 +13,7 @@ internal static class HidBattery
 
     internal static IEnumerable<BatteryReading> Read(string[] paths)
     {
+        Dictionary<Guid, string> audio = null;
         foreach (string path in paths)
         {
             using (SafeFileHandle handle = Open(path))
@@ -22,7 +23,29 @@ internal static class HidBattery
                     continue;
 
                 int? percent;
-                try { percent = ReadBattery(handle, descriptor); }
+                Guid? container = null;
+                PeripheralKind kind = PeripheralKind.Mouse;
+                string audioName = null;
+                try
+                {
+                    Caps caps;
+                    if (HidP_GetCaps(descriptor, out caps) != Success || caps.FeatureLength == 0 || caps.FeatureValues == 0)
+                        continue;
+                    if (caps.UsagePage != 1 || caps.Usage != 2)
+                    {
+                        if (!path.StartsWith(@"\\?\HID#VID_", StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        container = DeviceNodes.ContainerForHidPath(path);
+                        if (!container.HasValue)
+                            continue;
+                        if (audio == null)
+                            audio = DeviceNodes.UsbAudioDevices();
+                        if (!audio.TryGetValue(container.Value, out audioName))
+                            continue;
+                        kind = PeripheralKind.Headphones;
+                    }
+                    percent = ReadBattery(handle, descriptor, caps);
+                }
                 finally { HidD_FreePreparsedData(descriptor); }
                 if (!percent.HasValue)
                     continue;
@@ -30,20 +53,18 @@ internal static class HidBattery
                 var product = new StringBuilder(128);
                 string name = HidD_GetProductString(handle, product, product.Capacity * 2)
                     ? product.ToString().Trim() : "";
-                Guid? container = DeviceNodes.ContainerForHidPath(path);
+                container = container ?? DeviceNodes.ContainerForHidPath(path);
                 string id = container.HasValue ? container.Value.ToString() : path;
-                yield return new BatteryReading(id, name.Length == 0 ? "Mouse HID" : name, percent.Value, "HID estándar");
+                bool isAudio = kind == PeripheralKind.Headphones;
+                string fallback = isAudio ? audioName ?? "Audio USB" : "Mouse HID";
+                yield return new BatteryReading(id, name.Length == 0 ? fallback : name, percent.Value,
+                    isAudio ? "USB HID estándar" : "HID estándar", kind);
             }
         }
     }
 
-    private static int? ReadBattery(SafeFileHandle handle, IntPtr descriptor)
+    private static int? ReadBattery(SafeFileHandle handle, IntPtr descriptor, Caps caps)
     {
-        Caps caps;
-        if (HidP_GetCaps(descriptor, out caps) != Success || caps.UsagePage != 1 || caps.Usage != 2 ||
-            caps.FeatureLength == 0 || caps.FeatureValues == 0)
-            return null;
-
         ushort count = caps.FeatureValues;
         var values = new ValueCaps[count];
         if (HidP_GetSpecificValueCaps(Feature, DeviceControlsPage, 0, BatteryStrength, values, ref count, descriptor) != Success)

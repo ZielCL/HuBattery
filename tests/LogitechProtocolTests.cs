@@ -249,6 +249,10 @@ internal static class LogitechProtocolTests
         Verify(PeripheralBattery.IsBluetoothAudio(@"BTHHFENUM\BthHFPAudio") &&
             PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_VID&1234") &&
             PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000111e-0000-1000-8000-00805f9b34fb}_VID&1234") &&
+            PeripheralBattery.IsBluetoothAudio(@"BTHLEDevice\{0000184e-0000-1000-8000-00805f9b34fb}_Dev_VID&1234") &&
+            PeripheralBattery.IsBluetoothAudio(@"BTHLEDevice\{00001850-0000-1000-8000-00805f9b34fb}_Dev_VID&1234") &&
+            !PeripheralBattery.IsBluetoothAudio(@"BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&1234") &&
+            !PeripheralBattery.IsBluetoothAudio(@"BTHLEDevice\{0000184e-0000-1000-8000-012345678912}_Dev_VID&1234") &&
             !PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{00001124-0000-1000-8000-00805f9b34fb}_VID&1234") &&
             !PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000110b-0000-1000-8000-012345678912}_VID&1234"),
             "Clasificación incorrecta de servicios de audio Bluetooth.");

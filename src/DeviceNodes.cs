@@ -10,12 +10,14 @@ internal static class DeviceNodes
     private const uint ByClass = 0x200;
     private const int BufferSmall = 0x1A;
     private const string MouseClass = "{4D36E96F-E325-11CE-BFC1-08002BE10318}";
+    private const string MediaClass = "{4D36E96C-E325-11CE-BFC1-08002BE10318}";
     private const string AudioEndpointClass = "{C166523C-FE0C-4A94-A586-F1A80CFBBF3E}";
     private static readonly Guid HidClass = new Guid("4d1e55b2-f16f-11cf-88cb-001111000030");
     private static readonly Guid SystemContainer = new Guid("00000000-0000-0000-ffff-ffffffffffff");
     private static readonly Guid DeviceProperties = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0");
     private static readonly PropertyKey Container = new PropertyKey("8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c", 2);
     private static readonly PropertyKey BluetoothBattery = new PropertyKey("104ea319-6ee2-4701-bd47-8ddbf425bbe5", 2);
+    private static readonly PropertyKey DeviceCategory = new PropertyKey("78c34fc8-104a-4aca-9ea4-524d52996e57", 90);
 
     internal static string[] HidPaths()
     {
@@ -50,6 +52,20 @@ internal static class DeviceNodes
     internal static IEnumerable<uint> AudioEndpoints()
     {
         return Nodes(AudioEndpointClass, Present | ByClass);
+    }
+
+    internal static Dictionary<Guid, string> UsbAudioDevices()
+    {
+        var audio = new Dictionary<Guid, string>();
+        foreach (uint node in Nodes(MediaClass, Present | ByClass))
+        {
+            if (!InstanceId(node).StartsWith(@"USB\VID_", StringComparison.OrdinalIgnoreCase))
+                continue;
+            Guid? container = ContainerFor(node);
+            if (container.HasValue)
+                audio[container.Value] = FriendlyName(node);
+        }
+        return audio;
     }
 
     private static IEnumerable<uint> Nodes(string filter, uint flags)
@@ -124,6 +140,18 @@ internal static class DeviceNodes
     {
         byte[] value = Read(node, BluetoothBattery, 3);
         return value != null && value.Length == 1 && value[0] <= 100 ? (int?)value[0] : null;
+    }
+
+    internal static bool HasAudioCategory(uint node)
+    {
+        const uint StringList = 0x2012;
+        byte[] value = Read(node, DeviceCategory, StringList);
+        if (value == null)
+            return false;
+        foreach (string category in Encoding.Unicode.GetString(value).Split('\0'))
+            if (category.StartsWith("Audio.", StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
     }
 
     internal static string FriendlyName(uint node)

@@ -1,6 +1,6 @@
 # HuBattery
 
-[![Descargar la beta para Windows](https://img.shields.io/badge/Descargar-beta-2563EB?style=flat-square)](https://github.com/ZielCL/HuBattery/releases/download/v0.4.1-beta.2/HuBattery.exe)
+[![Descargar la beta para Windows](https://img.shields.io/badge/Descargar-beta-2563EB?style=flat-square)](https://github.com/ZielCL/HuBattery/releases/download/v0.4.2-beta.1/HuBattery.exe)
 [![Windows 10 y 11](https://img.shields.io/badge/Windows-10%20y%2011-0F766E?style=flat-square)](#uso)
 [![Estado de la compilación](https://github.com/ZielCL/HuBattery/actions/workflows/portable.yml/badge.svg?branch=main)](https://github.com/ZielCL/HuBattery/actions/workflows/portable.yml)
 [![Estrellas en GitHub](https://img.shields.io/github/stars/ZielCL/HuBattery?style=flat-square&label=Estrellas&logo=github&color=CA8A04)](https://github.com/ZielCL/HuBattery/stargazers)
@@ -62,20 +62,23 @@ HuBattery también puede leer mouses de otras marcas por **Bluetooth** si Window
 
 ## Audífonos
 
-Esta primera beta de audio está pendiente de pruebas con unidades físicas en HuBattery.
+La compatibilidad de audio está en beta y sigue pendiente de pruebas con unidades físicas en HuBattery.
 
 | Marca o conexión | Modelos o condición de lectura |
 | --- | --- |
 | Bluetooth | Audífonos cuyo nivel de batería publica Windows. También pueden aparecer otros dispositivos de audio Bluetooth, como parlantes portátiles. |
+| Redragon | Por Bluetooth, cualquier modelo cuyo nivel publique Windows. Puedes probar ese modo en los H848 Pro, Skuld Pro H878, Arrow Pro H858, Mira H868 y Spectra Pro H889. Por USB, la lectura requiere que el dispositivo declare el campo HID estándar Battery Strength. [Modelos y modos de conexión de Redragon](https://redragonshop.com/collections/wireless-headsets). |
 | SteelSeries | Arctis Nova 5, 5X, 7, 7 Gen 2, 7X y 7P por los [receptores USB incluidos](src/UsbHeadsetBattery.cs). Algunas revisiones Nova 7 reportan niveles en pasos de 25 %. |
 | HyperX | Cloud Alpha Wireless `03F0:098D`, Cloud Alpha 2 `03F0:08BE` y Cloud III Wireless `03F0:05B7` o `03F0:0C9D`, por receptor o estación USB. |
 | Corsair | Void Elite Wireless `1B1C:0A55`, por su receptor USB. |
 
+Queda pendiente la lectura por protocolo propietario de los receptores Redragon de 2,4 GHz. Algunos H848, H878 y H510 Pro usan el ID compartido `040B:0897`. Si tu modelo ofrece Bluetooth, emparéjalo con Windows y revisa si aparece un porcentaje en Configuración. [Referencia de hardware](https://github.com/Jijovo/redragon-h848-linux-fix).
+
 ## Cómo funciona
 
 - [PeripheralBattery.cs](src/PeripheralBattery.cs) reúne las lecturas y elimina duplicados del mismo tipo dentro de un contenedor de Windows. El menú conserva la selección de cada tipo durante la sesión.
-- [DeviceNodes.cs](src/DeviceNodes.cs) identifica los dispositivos y lee el nivel que publica Windows para Bluetooth. HuBattery distingue el audio por el servicio Bluetooth o por el contenedor del dispositivo de audio. [Guía de batería Bluetooth](https://learn.microsoft.com/windows-hardware/design/accessory-guidelines/bluetooth-accessory-guidelines/bluetooth-accessory-guidelines-battery-profiles-services) e [IDs de contenedores de audio](https://learn.microsoft.com/windows-hardware/drivers/audio/audio-endpoint-container-id).
-- [HidBattery.cs](src/HidBattery.cs) consulta solo el campo HID Battery Strength cuando el propio descriptor del mouse lo declara. [API de valores HID de Microsoft](https://learn.microsoft.com/windows-hardware/drivers/ddi/hidpi/nf-hidpi-hidp_getspecificvaluecaps).
+- [DeviceNodes.cs](src/DeviceNodes.cs) identifica los dispositivos y lee el nivel que publica Windows para Bluetooth. HuBattery distingue el audio por sus servicios Bluetooth clásico o LE Audio, la categoría de Windows o el contenedor del dispositivo de audio. [Guía de batería Bluetooth](https://learn.microsoft.com/windows-hardware/design/accessory-guidelines/bluetooth-accessory-guidelines/bluetooth-accessory-guidelines-battery-profiles-services) e [IDs de contenedores de audio](https://learn.microsoft.com/windows-hardware/drivers/audio/audio-endpoint-container-id).
+- [HidBattery.cs](src/HidBattery.cs) consulta el campo HID Battery Strength cuando el descriptor del mouse o de una interfaz del dispositivo de audio USB lo declara. [API de valores HID de Microsoft](https://learn.microsoft.com/windows-hardware/drivers/ddi/hidpi/nf-hidpi-hidp_getspecificvaluecaps).
 - [RazerBattery.cs](src/RazerBattery.cs) envía únicamente la consulta de nivel de batería a los identificadores USB del catálogo. [Referencia de protocolo de OpenRazer](https://github.com/openrazer/openrazer/blob/master/driver/razermouse_driver.c) y [referencia de identificadores USB](https://github.com/xzeldon/razer-battery-report#supported-mice).
 - [LogitechBattery.cs](src/LogitechBattery.cs) identifica cada mouse o trackball en las ranuras del receptor y consulta el porcentaje con Unified Battery `0x1004`, Battery Status `0x1000` o el registro de carga HID++ 1.0 `0x0D`. [Referencias de Solaar](https://github.com/pwr-Solaar/Solaar/tree/master/lib/logitech_receiver) y [del controlador HID++ de Linux](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-logitech-hidpp.c).
 - [VendorMouseBattery.cs](src/VendorMouseBattery.cs) verifica el VID/PID y la colección HID de cada receptor antes de consultar su batería. Valida la respuesta, incluida la suma de comprobación cuando el protocolo la define. [HaloBattery](https://github.com/HeyOkay/HaloBattery/blob/main/docs/protocols.md), [alloyctl](https://alloy.szymon-wilczek.me/protocol/steelseries-aerox3-wireless.html) y [ngenuity-linux-cli](https://github.com/PMarinov1994/ngenuity-linux-cli) documentan las consultas por familia.
@@ -94,6 +97,7 @@ Abre un [issue](https://github.com/ZielCL/HuBattery/issues/new) con marca y mode
 
 ## Avance
 
+- **v0.4.2-beta.1**. Amplía la detección de audífonos Bluetooth y añade la lectura de Battery Strength en audio USB. Documenta la compatibilidad de Redragon. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.4.2-beta.1).
 - **v0.4.1-beta.2**. Añade la comprobación de versiones al arrancar Windows y la búsqueda e instalación desde el menú del indicador. Mejora la limpieza de archivos temporales tras instalar. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.4.1-beta.2).
 - **v0.4.0-beta.1**. Añade audífonos Bluetooth y receptores USB seleccionados de SteelSeries, HyperX y Corsair. El indicador puede mostrar el mouse y los audífonos simultáneamente. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.4.0-beta.1).
 - **v0.3.2-beta.1**. Añade Zaopin Z2 Mini, Dareu A950 Air y A950 Wing, y receptores y cables de G-Wolves Lycan y Fenrir. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.3.2-beta.1).

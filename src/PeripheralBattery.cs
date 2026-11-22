@@ -70,6 +70,11 @@ internal static class PeripheralBattery
 
         foreach (var entry in bluetooth)
         {
+            var battery = entry.Value.Select(node => new { Node = node, Level = DeviceNodes.BatteryFor(node) })
+                .FirstOrDefault(reading => reading.Level.HasValue);
+            if (battery == null)
+                continue;
+
             string name;
             PeripheralKind kind;
             if (mice.TryGetValue(entry.Key, out name))
@@ -79,17 +84,17 @@ internal static class PeripheralBattery
             else
             {
                 bool hasEndpoint = endpoints.TryGetValue(entry.Key, out name);
-                if (!hasEndpoint && !entry.Value.Any(node => IsBluetoothAudio(DeviceNodes.InstanceId(node))))
+                if (!hasEndpoint && !entry.Value.Any(node =>
+                    IsBluetoothAudio(DeviceNodes.InstanceId(node)) || DeviceNodes.HasAudioCategory(node)))
                     continue;
 
                 uint device = entry.Value.FirstOrDefault(node => IsBluetoothDevice(DeviceNodes.InstanceId(node)));
-                name = (device == 0 ? null : DeviceNodes.FriendlyName(device)) ?? name ?? "Audio Bluetooth";
+                name = (device == 0 ? null : DeviceNodes.FriendlyName(device)) ?? name ??
+                    DeviceNodes.FriendlyName(battery.Node) ?? "Audio Bluetooth";
                 kind = PeripheralKind.Headphones;
             }
 
-            int? percent = entry.Value.Select(DeviceNodes.BatteryFor).FirstOrDefault(value => value.HasValue);
-            if (percent.HasValue)
-                yield return new BatteryReading(entry.Key.ToString(), name, percent.Value, "Bluetooth", kind);
+            yield return new BatteryReading(entry.Key.ToString(), name, battery.Level.Value, "Bluetooth", kind);
         }
     }
 
@@ -113,13 +118,17 @@ internal static class PeripheralBattery
     {
         if (id.StartsWith("BTHHFENUM\\", StringComparison.OrdinalIgnoreCase))
             return true;
-        const string prefix = "BTHENUM\\{0000";
+        const string classicPrefix = "BTHENUM\\{0000";
+        const string lePrefix = "BTHLEDEVICE\\{0000";
         const string suffix = "-0000-1000-8000-00805F9B34FB}";
-        if (!id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || id.Length < prefix.Length + 4 + suffix.Length)
+        bool lowEnergy = id.StartsWith(lePrefix, StringComparison.OrdinalIgnoreCase);
+        int start = lowEnergy ? lePrefix.Length : classicPrefix.Length;
+        if ((!lowEnergy && !id.StartsWith(classicPrefix, StringComparison.OrdinalIgnoreCase)) ||
+            id.Length < start + 4 + suffix.Length ||
+            string.Compare(id, start + 4, suffix, 0, suffix.Length, StringComparison.OrdinalIgnoreCase) != 0)
             return false;
-        string service = id.Substring(prefix.Length, 4);
-        return string.Compare(id, prefix.Length + 4, suffix, 0, suffix.Length, StringComparison.OrdinalIgnoreCase) == 0 &&
-            (service.Equals("110B", StringComparison.OrdinalIgnoreCase) || service == "1108" ||
-             service.Equals("111E", StringComparison.OrdinalIgnoreCase));
+        string service = id.Substring(start, 4).ToUpperInvariant();
+        return lowEnergy ? service == "184E" || service == "1850" :
+            service == "110B" || service == "1108" || service == "111E";
     }
 }
