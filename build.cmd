@@ -10,5 +10,6 @@ if not exist "%HUBATTERY_CSC%" (
 if not exist "%HUBATTERY_OUTPUT%\" mkdir "%HUBATTERY_OUTPUT%"
 "%HUBATTERY_CSC%" /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 ^
     /win32manifest:"%~dp0src\HuBattery.manifest" /out:"%HUBATTERY_OUTPUT%\HuBattery.exe" ^
+    /win32icon:"%~dp0assets\HuBattery.ico" ^
     /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /recurse:"%~dp0src\*.cs"
 exit /b %errorlevel%
