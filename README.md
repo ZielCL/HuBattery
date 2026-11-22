@@ -1,12 +1,18 @@
 # HuBattery
 
+[![Descargar la beta para Windows](https://img.shields.io/badge/Descargar-beta-2563EB?style=flat-square)](https://github.com/ZielCL/HuBattery/releases/download/v0.4.0-beta.1/HuBattery.exe)
+[![Windows 10 y 11](https://img.shields.io/badge/Windows-10%20y%2011-0F766E?style=flat-square)](#uso)
+[![Estado de la compilación](https://github.com/ZielCL/HuBattery/actions/workflows/portable.yml/badge.svg?branch=main)](https://github.com/ZielCL/HuBattery/actions/workflows/portable.yml)
+[![Estrellas en GitHub](https://img.shields.io/github/stars/ZielCL/HuBattery?style=flat-square&label=Estrellas&logo=github&color=CA8A04)](https://github.com/ZielCL/HuBattery/stargazers)
+[![Reportar un dispositivo](https://img.shields.io/badge/Reportar-dispositivo-9333EA?style=flat-square)](#reportar-un-dispositivo)
+
 HuBattery muestra la batería del mouse y los audífonos junto al reloj de Windows. Funciona como un ejecutable portátil y consulta el nivel cada 30 segundos.
 
 ![Vista previa de HuBattery con un mouse al 78 % y audífonos al 64 % junto al reloj de Windows](assets/hubattery-barra-de-tareas.png)
 
 *Vista previa del indicador con porcentajes de ejemplo.*
 
-**[Descargar HuBattery.exe para Windows](https://github.com/ZielCL/HuBattery/releases/download/v0.4.0-beta.1/HuBattery.exe)** · [Ver mouses](#compatibilidad) · [Ver audífonos](#audífonos)
+[Ver versiones](https://github.com/ZielCL/HuBattery/releases) · [Ver mouses](#compatibilidad) · [Ver audífonos](#audífonos)
 
 ## Uso
 
