@@ -20,8 +20,9 @@ internal static class LogitechProtocolTests
             TestInvalidPercentageSkipped();
             TestLegacyRegister();
             TestVendorBatteryReports();
+            TestNewMouseCatalog();
             TestWindowsTransport();
-            Console.WriteLine("HID: 9 pruebas aprobadas.");
+            Console.WriteLine("HID: 10 pruebas aprobadas.");
             return 0;
         }
         catch (InvalidOperationException error)
@@ -129,6 +130,35 @@ internal static class LogitechProtocolTests
         Verify(VendorMouseBattery.DecodeCompx(compx) == 75, "Lectura Compx inválida.");
         compx[16]++;
         Verify(VendorMouseBattery.DecodeCompx(compx) == null, "Se aceptó una suma de comprobación Compx inválida.");
+    }
+
+    private static void TestNewMouseCatalog()
+    {
+        var compx = new HidBattery.Caps { UsagePage = 0xFF02, Usage = 2, InputLength = 17, OutputLength = 17 };
+        var feature = new HidBattery.Caps { UsagePage = 0xFFFF, Usage = 0, FeatureLength = 65 };
+        var inputMouse = new HidBattery.Caps { UsagePage = 1, Usage = 2, InputLength = 17 };
+        string[] receivers = { "3554&pid_f524", "260d&pid_1175", "260d&pid_1154", "33e4&pid_3854" };
+        string[] cables = { "3554&pid_f526", "260d&pid_1193", "260d&pid_1196", "33e4&pid_4719", "33e4&pid_3619" };
+
+        foreach (string receiver in receivers)
+            VerifyModel(receiver, "USB 2,4 GHz", compx, feature);
+        foreach (string cable in cables)
+            VerifyModel(cable, "Cable USB", compx, inputMouse);
+        VerifyModel("33e4&pid_3517", "USB 2,4 GHz", feature, compx);
+        VerifyModel("33e4&pid_3508", "Cable USB", feature, inputMouse);
+
+        string id;
+        Verify(VendorMouseBattery.FindModel(@"\\?\hid#vid_260d&pid_0000&mi_01#sample", out id) == null,
+            "Se aceptó un receptor Dareu fuera del catálogo.");
+    }
+
+    private static void VerifyModel(string identifier, string connection, HidBattery.Caps expected, HidBattery.Caps wrong)
+    {
+        string id;
+        VendorMouseBattery.Model model = VendorMouseBattery.FindModel(
+            @"\\?\hid#vid_" + identifier + "&mi_02&col03#sample", out id);
+        Verify(model != null && model.Connection == connection && VendorMouseBattery.IsBatteryCollection(model, expected) &&
+            !VendorMouseBattery.IsBatteryCollection(model, wrong), "Identificación HID incorrecta para " + identifier);
     }
 
     private static void TestWindowsTransport()

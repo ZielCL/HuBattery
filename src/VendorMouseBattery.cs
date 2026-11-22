@@ -5,19 +5,22 @@ using Microsoft.Win32.SafeHandles;
 
 internal static class VendorMouseBattery
 {
-    private enum Protocol { Aerox, Rival, HyperX, Sinowealth, Corsair, Compx }
+    internal enum Protocol { Aerox, Rival, HyperX, Sinowealth, Corsair, Compx }
 
-    private sealed class Model
+    internal sealed class Model
     {
         internal readonly string Name;
         internal readonly Protocol Reader;
         internal readonly string Connection;
+        internal readonly bool StrictFeatureCollection;
 
-        internal Model(string name, Protocol reader, string connection = "USB 2,4 GHz")
+        internal Model(string name, Protocol reader, string connection = "USB 2,4 GHz",
+            bool strictFeatureCollection = false)
         {
             Name = name;
             Reader = reader;
             Connection = connection;
+            StrictFeatureCollection = strictFeatureCollection;
         }
     }
 
@@ -37,13 +40,24 @@ internal static class VendorMouseBattery
         { "VID_03F0&PID_0F98", new Model("HyperX Pulsefire Haste 2 Wireless", Protocol.HyperX) },
         { "VID_03F0&PID_0D97", new Model("HyperX Pulsefire Haste 2 Wireless", Protocol.HyperX) },
         { "VID_258A&PID_2022", new Model("Glorious Model O Wireless", Protocol.Sinowealth) },
-        { "VID_373E&PID_001E", new Model("LAMZU Maya X 8K", Protocol.Sinowealth) },
+        { "VID_373E&PID_001E", new Model("LAMZU Maya X 8K", Protocol.Sinowealth, strictFeatureCollection: true) },
         { "VID_1B1C&PID_1B7F", new Model("Corsair Dark Core RGB Pro SE", Protocol.Corsair) },
         { "VID_1B1C&PID_2B2A", new Model("Corsair Sabre V2 Pro Ultralight", Protocol.Compx) },
         { "VID_3770&PID_0200", new Model("Hitscan Hyperlight", Protocol.Compx) },
         { "VID_3554&PID_F5F7", new Model("Scyrox V8", Protocol.Compx) },
         { "VID_3554&PID_F5F4", new Model("Scyrox V8", Protocol.Compx) },
         { "VID_3554&PID_F5F6", new Model("Scyrox V8", Protocol.Compx, "Cable USB") },
+        { "VID_3554&PID_F524", new Model("Zaopin Z2 Mini", Protocol.Compx) },
+        { "VID_3554&PID_F526", new Model("Zaopin Z2 Mini", Protocol.Compx, "Cable USB") },
+        { "VID_260D&PID_1175", new Model("Dareu A950 Air", Protocol.Compx) },
+        { "VID_260D&PID_1193", new Model("Dareu A950 Air", Protocol.Compx, "Cable USB") },
+        { "VID_260D&PID_1154", new Model("Dareu A950 Wing", Protocol.Compx) },
+        { "VID_260D&PID_1196", new Model("Dareu A950 Wing", Protocol.Compx, "Cable USB") },
+        { "VID_33E4&PID_3854", new Model("G-Wolves Receiver RS", Protocol.Compx) },
+        { "VID_33E4&PID_4719", new Model("G-Wolves Lycan", Protocol.Compx, "Cable USB") },
+        { "VID_33E4&PID_3619", new Model("G-Wolves Fenrir Pro", Protocol.Compx, "Cable USB") },
+        { "VID_33E4&PID_3517", new Model("G-Wolves Lycan / Fenrir Asym 8K", Protocol.Sinowealth, strictFeatureCollection: true) },
+        { "VID_33E4&PID_3508", new Model("G-Wolves Lycan / Fenrir Asym 8K", Protocol.Sinowealth, "Cable USB", true) },
         { "VID_3554&PID_F508", new Model("Pulsar X2 V2 Mini", Protocol.Compx) },
         { "VID_3710&PID_5406", new Model("Pulsar X2 CrazyLight Mini", Protocol.Compx) },
         { "VID_3554&PID_F58A", new Model("ATK VXE R1 Pro Max", Protocol.Compx) },
@@ -56,14 +70,9 @@ internal static class VendorMouseBattery
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string path in paths)
         {
-            if (!path.StartsWith(UsbHidPrefix, StringComparison.OrdinalIgnoreCase) ||
-                path.Length <= UsbHidPrefix.Length + IdLength)
-                continue;
-
-            string usbId = path.Substring(UsbHidPrefix.Length, IdLength);
-            char separator = path[UsbHidPrefix.Length + IdLength];
-            Model model;
-            if ((separator != '#' && separator != '&') || !Models.TryGetValue(usbId, out model))
+            string usbId;
+            Model model = FindModel(path, out usbId);
+            if (model == null)
                 continue;
 
             Guid? container = DeviceNodes.ContainerForHidPath(path);
@@ -74,7 +83,7 @@ internal static class VendorMouseBattery
             HidBattery.Caps caps;
             using (SafeFileHandle handle = HidBattery.Open(path))
             {
-                if (!HidBattery.TryGetCaps(handle, out caps) || !IsBatteryCollection(model.Reader, usbId, caps))
+                if (!HidBattery.TryGetCaps(handle, out caps) || !IsBatteryCollection(model, caps))
                     continue;
 
                 if (model.Reader == Protocol.Sinowealth)
@@ -100,13 +109,26 @@ internal static class VendorMouseBattery
         }
     }
 
-    private static bool IsBatteryCollection(Protocol reader, string usbId, HidBattery.Caps caps)
+    internal static Model FindModel(string path, out string usbId)
     {
-        switch (reader)
+        usbId = null;
+        int end = UsbHidPrefix.Length + IdLength;
+        if (path.Length <= end || !path.StartsWith(UsbHidPrefix, StringComparison.OrdinalIgnoreCase) ||
+            (path[end] != '#' && path[end] != '&'))
+            return null;
+
+        usbId = path.Substring(UsbHidPrefix.Length, IdLength);
+        Model model;
+        return Models.TryGetValue(usbId, out model) ? model : null;
+    }
+
+    internal static bool IsBatteryCollection(Model model, HidBattery.Caps caps)
+    {
+        switch (model.Reader)
         {
             case Protocol.Sinowealth:
                 return caps.FeatureLength == 65 &&
-                    (usbId.EndsWith("001E", StringComparison.OrdinalIgnoreCase)
+                    (model.StrictFeatureCollection
                         ? caps.UsagePage == 0xFFFF && caps.Usage == 0
                         : caps.UsagePage == 0xFFA0 || caps.UsagePage == 0xFFFF);
             case Protocol.HyperX:
