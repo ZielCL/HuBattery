@@ -2,10 +2,16 @@
 
 HuBattery muestra un símbolo de mouse y el porcentaje de batería junto al reloj de Windows. Funciona como un ejecutable portátil y consulta el nivel cada 30 segundos.
 
+![Vista previa de HuBattery con un símbolo de mouse y 78 % junto a los iconos de la bandeja y el reloj de Windows](assets/hubattery-barra-de-tareas.png)
+
+*Vista previa del indicador. El 78 % es un ejemplo.*
+
+**[Descargar HuBattery.exe para Windows](https://github.com/ZielCL/HuBattery/releases/download/v0.3.2-beta.1/HuBattery.exe)** · [Ver marcas y modelos](#compatibilidad)
+
 ## Uso
 
-1. Descarga `HuBattery.exe` desde [Releases](https://github.com/ZielCL/HuBattery/releases).
-2. Abre el ejecutable y mueve el mouse si estaba en reposo.
+1. Conecta el mouse por el receptor, cable o Bluetooth, según el modelo.
+2. Abre `HuBattery.exe` con doble clic y mueve el mouse si estaba en reposo.
 3. Haz clic izquierdo en el indicador para actualizar. Abre el menú con clic derecho para elegir un mouse si hay varios con lectura, iniciar con Windows o salir.
 
 Si ya tienes HuBattery abierto, sal desde su menú antes de ejecutar otra versión.
@@ -14,21 +20,30 @@ El indicador se coloca junto a la bandeja en la barra de tareas principal horizo
 
 ## Compatibilidad
 
-| Conexión | Lectura de batería | Estado |
-| --- | --- | --- |
-| Receptor USB Razer DeathAdder V3 HyperSpeed `1532:00C5` | Consulta HID de Razer | Verificado en Windows con hardware |
-| Otros Razer USB del [catálogo](src/RazerBattery.cs) | Consulta HID por modelo | Implementado según referencias, pendiente de pruebas en cada modelo |
-| Logitech Logi Bolt, Unifying, LIGHTSPEED y Nano | HID++ 2.0 en mouses y trackballs. HID++ 1.0 por Unifying y Nano cuando el receptor identifica el dispositivo y este ofrece una carga numérica | Beta. [IDs de receptores](src/LogitechBattery.cs). Pendiente de pruebas con esos receptores físicos |
-| SteelSeries Aerox 3, 5 y 9 Wireless y Rival 3 Wireless (incluye Gen 2) | Receptores de 2,4 GHz del catálogo. Aerox puede informar en pasos de 5 %. Rival requiere una respuesta con el código de la consulta | Beta. Pendiente de pruebas en HuBattery con hardware |
-| HyperX Pulsefire Haste 2 Wireless, Glorious Model O Wireless y LAMZU Maya X 8K | Consulta HID del receptor de 2,4 GHz | Beta. Pendiente de pruebas en HuBattery con hardware |
-| Corsair Dark Core RGB Pro SE y Sabre V2 Pro Ultralight, Hitscan Hyperlight, Pulsar X2 V2 Mini y X2 CrazyLight Mini, ATK X1 Pro, VXE R1 Pro Max y VGN Dragonfly 4K | Lectura por receptores de 2,4 GHz identificados en el [catálogo](src/VendorMouseBattery.cs) | Beta. Pendiente de pruebas en HuBattery con hardware |
-| Scyrox V8 | Receptor de 2,4 GHz `3554:F5F7` o `3554:F5F4` y cable USB `3554:F5F6`, por Compx | Beta. Pendiente de pruebas en HuBattery con hardware. [Protocolo de batería](https://github.com/Fan4Metal/mouse_tray/blob/master/mouse_tray/drivers/chipset/nordic52.py) e [IDs de S-center](https://github.com/vladkovalch/scyrox-v8-config/blob/main/scyrox_v8_config.py) |
-| Zaopin Z2 Mini, Dareu A950 Air y A950 Wing | Receptor de 2,4 GHz y cable USB por Compx | Beta. Pendiente de pruebas en HuBattery con hardware. [IDs y protocolo](https://github.com/Fan4Metal/mouse_tray/blob/master/mouse_tray/drivers/chipset/nordic52.py) |
-| G-Wolves Lycan, Fenrir Pro y Fenrir Asym 8K | Receiver RS y cables Lycan/Fenrir Pro por Compx. Receptor y cable Lycan/Fenrir Asym 8K por reporte HID de características | Beta. Pendiente de pruebas en HuBattery con hardware. [Compx](https://github.com/Fan4Metal/mouse_tray/blob/master/mouse_tray/drivers/chipset/nordic52.py) y [variantes de G-Wolves](https://github.com/maximelonguepe/gwolves-battery-overlay/blob/main/docs/PROTOCOL.md) |
-| Mouse Bluetooth | Lee el porcentaje si Windows lo publica para el dispositivo | Pendiente de pruebas con hardware Bluetooth |
-| Mouse con campo HID estándar Battery Strength | Lee el campo si existe en un reporte de características de la colección del mouse | Pendiente de pruebas con hardware compatible |
+**Probado con hardware en HuBattery**. Razer DeathAdder V3 HyperSpeed por receptor USB `1532:00C5`. El resto de las entradas están disponibles en beta y quedan pendientes de pruebas físicas en HuBattery.
 
-Un receptor de 2,4 GHz puede usar un protocolo propio aunque Windows reconozca el mouse. Si la barra muestra `—`, HuBattery todavía no recibió un porcentaje válido. En dispositivos Logitech que solo informan estados como «bajo» o «alto», no se inventa un porcentaje. Los equipos que usan otros receptores, interfaces o protocolos requieren una prueba y, en algunos casos, un lector adicional.
+| Marca | Modelos o receptores incluidos | Conexión |
+| --- | --- | --- |
+| Razer | DeathAdder V3 HyperSpeed y otros modelos del [catálogo Razer](src/RazerBattery.cs) | Receptor o cable USB según el modelo |
+| Logitech | G305 y otros mouses o trackballs que reportan porcentaje mediante los [receptores Bolt, Unifying, LIGHTSPEED y Nano del catálogo](src/LogitechBattery.cs) | Receptor USB HID++ |
+| SteelSeries | Aerox 3, 5 y 9 Wireless y Rival 3 Wireless, incluida la Gen 2 | Receptor USB de 2,4 GHz |
+| HyperX | Pulsefire Haste 2 Wireless | Receptor USB de 2,4 GHz |
+| Glorious | Model O Wireless | Receptor USB de 2,4 GHz |
+| LAMZU | Maya X 8K | Receptor USB de 2,4 GHz |
+| Corsair | Dark Core RGB Pro SE y Sabre V2 Pro Ultralight | Receptor USB de 2,4 GHz |
+| Hitscan | Hyperlight | Receptor USB de 2,4 GHz |
+| Pulsar | X2 V2 Mini y X2 CrazyLight Mini | Receptor USB de 2,4 GHz |
+| ATK | X1 Pro | Receptor USB de 2,4 GHz |
+| VXE | R1 Pro Max | Receptor USB de 2,4 GHz |
+| VGN | Dragonfly 4K | Receptor USB de 2,4 GHz |
+| Scyrox | V8 | Receptores `3554:F5F7` y `3554:F5F4`, y cable `3554:F5F6` |
+| Zaopin | Z2 Mini | Receptor USB de 2,4 GHz y cable USB |
+| Dareu | A950 Air y A950 Wing | Receptor USB de 2,4 GHz y cable USB |
+| G-Wolves | Lycan, Fenrir Pro y Fenrir Asym 8K | Receiver RS y receptores y cables USB incluidos en el catálogo |
+
+La compatibilidad depende del modelo y de los [IDs USB de su conexión](src/VendorMouseBattery.cs). Aerox puede reportar en pasos de 5 % y Rival requiere una respuesta que incluya el código de la consulta. Para HID++ 1.0, HuBattery consulta mouses y trackballs identificados por un receptor Unifying o Nano cuando el dispositivo devuelve un porcentaje.
+
+HuBattery también puede leer mouses de otras marcas por **Bluetooth** si Windows publica el porcentaje, o mediante **HID estándar** si el dispositivo declara el campo Battery Strength en un reporte de características. Ambas vías siguen pendientes de pruebas con hardware en HuBattery. Si el indicador muestra `—`, todavía no se ha recibido un porcentaje válido.
 
 ## Cómo funciona
 
@@ -38,6 +53,7 @@ Un receptor de 2,4 GHz puede usar un protocolo propio aunque Windows reconozca e
 - [RazerBattery.cs](src/RazerBattery.cs) envía únicamente la consulta de nivel de batería a los identificadores USB del catálogo. [Referencia de protocolo de OpenRazer](https://github.com/openrazer/openrazer/blob/master/driver/razermouse_driver.c) y [referencia de identificadores USB](https://github.com/xzeldon/razer-battery-report#supported-mice).
 - [LogitechBattery.cs](src/LogitechBattery.cs) identifica cada mouse o trackball en las ranuras del receptor y consulta el porcentaje con Unified Battery `0x1004`, Battery Status `0x1000` o el registro de carga HID++ 1.0 `0x0D`. [Referencias de Solaar](https://github.com/pwr-Solaar/Solaar/tree/master/lib/logitech_receiver) y [del controlador HID++ de Linux](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-logitech-hidpp.c).
 - [VendorMouseBattery.cs](src/VendorMouseBattery.cs) verifica el VID/PID y la colección HID de cada receptor antes de consultar su batería. Valida la respuesta, incluida la suma de comprobación cuando el protocolo la define. [HaloBattery](https://github.com/HeyOkay/HaloBattery/blob/main/docs/protocols.md), [alloyctl](https://alloy.szymon-wilczek.me/protocol/steelseries-aerox3-wireless.html) y [ngenuity-linux-cli](https://github.com/PMarinov1994/ngenuity-linux-cli) documentan las consultas por familia.
+- El soporte de Scyrox, Zaopin, Dareu y G-Wolves se apoya en el [lector Compx/Nordic](https://github.com/Fan4Metal/mouse_tray/blob/master/mouse_tray/drivers/chipset/nordic52.py), los [IDs de Scyrox S-center](https://github.com/vladkovalch/scyrox-v8-config/blob/main/scyrox_v8_config.py) y la [documentación de las variantes de G-Wolves](https://github.com/maximelonguepe/gwolves-battery-overlay/blob/main/docs/PROTOCOL.md).
 
 ## Compilación
 
