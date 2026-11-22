@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Pipes;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Win32.SafeHandles;
 
@@ -28,13 +29,71 @@ internal static class LogitechProtocolTests
             TestBluetoothAudioClassification();
             TestIndependentSelectionAndRendering();
             TestWindowsTransport();
-            Console.WriteLine("HuBattery: 13 pruebas aprobadas.");
+            TestBootUpdatePolicy();
+            TestReleaseSelection();
+            TestUpdateHash();
+            Console.WriteLine("HuBattery: 16 pruebas aprobadas.");
             return 0;
         }
         catch (InvalidOperationException error)
         {
             Console.Error.WriteLine(error.Message);
             return 1;
+        }
+    }
+
+    private static void TestBootUpdatePolicy()
+    {
+        Guid same = Guid.NewGuid();
+        Guid next = Guid.NewGuid();
+        Verify(!BootUpdateState.ShouldCheck(null, same) && !BootUpdateState.ShouldCheck("inválido", same) &&
+            !BootUpdateState.ShouldCheck(same.ToString("D").ToUpperInvariant(), same) &&
+            !BootUpdateState.ShouldCheck(same.ToString("D"), Guid.Empty) &&
+            BootUpdateState.ShouldCheck(same.ToString("D"), next), "La consulta automática no respetó el arranque.");
+    }
+
+    private static void TestReleaseSelection()
+    {
+        GitHubRelease draft = MakeRelease("v2.0.0", false);
+        draft.draft = true;
+        GitHubRelease wrongSource = MakeRelease("v3.0.0", false);
+        wrongSource.assets[0].browser_download_url = "https://example.com/HuBattery.exe";
+        GitHubRelease badDigest = MakeRelease("v4.0.0", false);
+        badDigest.assets[0].digest = "sha256:bad";
+        var releases = new[] { MakeRelease("v1.2.0-beta.2", true), MakeRelease("v1.2.0-beta.10", true),
+            MakeRelease("v1.1.5", false), draft, wrongSource, badDigest };
+        string json = new JavaScriptSerializer().Serialize(releases);
+        UpdateCandidate beta = ReleaseUpdater.SelectLatest(json, "1.2.0-beta.1");
+        UpdateCandidate stable = ReleaseUpdater.SelectLatest(json, "1.1.0");
+        Verify(beta != null && beta.Tag == "v1.2.0-beta.10" && stable != null && stable.Tag == "v1.1.5" &&
+            ReleaseUpdater.SelectLatest(json, "1.2.0-beta.10") == null &&
+            ReleaseUpdater.SelectLatest(json, "1.1.5") == null, "Se eligió una versión incorrecta.");
+        UpdateCandidate graduation = ReleaseUpdater.SelectLatest(new[] { MakeRelease("v1.2.0", false) }, "1.2.0-beta.10");
+        Verify(graduation != null && graduation.Tag == "v1.2.0", "Una beta no pudo actualizar a la versión estable.");
+    }
+
+    private static GitHubRelease MakeRelease(string tag, bool beta)
+    {
+        var asset = new ReleaseAsset { name = "HuBattery.exe", state = "uploaded", size = 1024,
+            digest = "sha256:" + new string('a', 64),
+            browser_download_url = "https://github.com/ZielCL/HuBattery/releases/download/" + tag + "/HuBattery.exe" };
+        return new GitHubRelease { tag_name = tag, prerelease = beta, assets = new[] { asset } };
+    }
+
+    private static void TestUpdateHash()
+    {
+        string path = Path.GetTempFileName();
+        try
+        {
+            const string expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+            File.WriteAllBytes(path, Encoding.ASCII.GetBytes("abc"));
+            Verify(ReleaseUpdater.MatchesHash(path, expected), "No se verificó el SHA-256 esperado.");
+            File.AppendAllText(path, "d");
+            Verify(!ReleaseUpdater.MatchesHash(path, expected), "Se aceptó un archivo alterado.");
+        }
+        finally
+        {
+            File.Delete(path);
         }
     }
 

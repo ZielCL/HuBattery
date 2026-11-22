@@ -1,6 +1,6 @@
 # HuBattery
 
-[![Descargar la beta para Windows](https://img.shields.io/badge/Descargar-beta-2563EB?style=flat-square)](https://github.com/ZielCL/HuBattery/releases/download/v0.4.0-beta.1/HuBattery.exe)
+[![Descargar la beta para Windows](https://img.shields.io/badge/Descargar-beta-2563EB?style=flat-square)](https://github.com/ZielCL/HuBattery/releases/download/v0.4.1-beta.1/HuBattery.exe)
 [![Windows 10 y 11](https://img.shields.io/badge/Windows-10%20y%2011-0F766E?style=flat-square)](#uso)
 [![Estado de la compilación](https://github.com/ZielCL/HuBattery/actions/workflows/portable.yml/badge.svg?branch=main)](https://github.com/ZielCL/HuBattery/actions/workflows/portable.yml)
 [![Estrellas en GitHub](https://img.shields.io/github/stars/ZielCL/HuBattery?style=flat-square&label=Estrellas&logo=github&color=CA8A04)](https://github.com/ZielCL/HuBattery/stargazers)
@@ -23,6 +23,15 @@ HuBattery muestra la batería del mouse y los audífonos junto al reloj de Windo
 Si ya tienes HuBattery abierto, sal desde su menú antes de ejecutar otra versión.
 
 El indicador muestra un mouse y unos audífonos a la vez junto a la bandeja en la barra de tareas principal horizontal. En la bandeja compacta, abre el menú para ver ambas lecturas. Windows puede agrupar el icono en la sección de iconos ocultos.
+
+## Actualizaciones
+
+Desde **v0.4.1-beta.1**, HuBattery consulta GitHub una vez cuando se abre tras un nuevo arranque de Windows. La primera apertura registra el arranque actual. Activa **Iniciar con Windows** desde el menú del indicador para que la comprobación se haga al iniciar sesión.
+
+- **Al arrancar Windows.** Si HuBattery encuentra una versión nueva, añade **Instalar actualización** al menú de clic derecho del indicador sin mostrar una ventana.
+- **En cualquier momento.** Haz clic derecho en el indicador y elige **Buscar actualizaciones**.
+
+Si confirmas la instalación, HuBattery descarga y verifica el ejecutable, reemplaza el archivo en su ubicación actual y vuelve a abrirse. Las versiones anteriores a v0.4.1-beta.1 necesitan descargar el ejecutable actualizado una vez.
 
 ## Compatibilidad
 
@@ -85,6 +94,7 @@ Abre un [issue](https://github.com/ZielCL/HuBattery/issues/new) con marca y mode
 
 ## Avance
 
+- **v0.4.1-beta.1**. Añade la comprobación de versiones al arrancar Windows y la búsqueda e instalación desde el menú del indicador. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.4.1-beta.1).
 - **v0.4.0-beta.1**. Añade audífonos Bluetooth y receptores USB seleccionados de SteelSeries, HyperX y Corsair. El indicador puede mostrar el mouse y los audífonos simultáneamente. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.4.0-beta.1).
 - **v0.3.2-beta.1**. Añade Zaopin Z2 Mini, Dareu A950 Air y A950 Wing, y receptores y cables de G-Wolves Lycan y Fenrir. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.3.2-beta.1).
 - **v0.3.1-beta.1**. Añade el Scyrox V8 por receptor y cable, e incorpora el icono de HuBattery al ejecutable. [Descarga de la beta](https://github.com/ZielCL/HuBattery/releases/tag/v0.3.1-beta.1).

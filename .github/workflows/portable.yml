@@ -41,6 +41,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $version = (Get-Item HuBattery.exe).VersionInfo.ProductVersion
+          if ("v$version" -cne $env:GITHUB_REF_NAME) {
+            throw "La versión del ejecutable ($version) no coincide con $env:GITHUB_REF_NAME."
+          }
           $options = @()
           if ($env:GITHUB_REF_NAME -match '-') { $options += '--prerelease' }
           gh release create "$env:GITHUB_REF_NAME" HuBattery.exe --verify-tag --repo "$env:GITHUB_REPOSITORY" --title "$env:GITHUB_REF_NAME" --generate-notes @options

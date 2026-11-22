@@ -14,8 +14,11 @@ using Microsoft.Win32;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if (PortableUpdate.RunHelper(args))
+            return;
+
         bool isFirst;
         using (var instance = new Mutex(true, @"Local\BateriaMouse.1532.00C5", out isFirst))
         {
@@ -24,6 +27,8 @@ internal static class Program
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            if (args.Length == 2 && args[0] == "--clean-update")
+                Task.Run(() => PortableUpdate.Cleanup(args[1]));
             using (var tray = new BatteryTray())
                 Application.Run(tray);
         }
@@ -41,6 +46,8 @@ internal sealed class BatteryTray : ApplicationContext
     private readonly ToolStripMenuItem status;
     private readonly ToolStripMenuItem headphoneStatus;
     private readonly ToolStripMenuItem refresh;
+    private readonly ToolStripMenuItem checkUpdate;
+    private readonly ToolStripMenuItem installUpdate;
     private readonly ToolStripMenuItem startup;
     private readonly ToolStripMenuItem miceMenu;
     private readonly ToolStripMenuItem headphonesMenu;
@@ -54,18 +61,24 @@ internal sealed class BatteryTray : ApplicationContext
     private string preferredHeadphones;
     private bool busy;
     private bool closing;
+    private bool updateBusy;
+    private UpdateCandidate availableUpdate;
 
     internal BatteryTray()
     {
         status = new ToolStripMenuItem { Enabled = false };
         headphoneStatus = new ToolStripMenuItem { Enabled = false };
-        refresh = new ToolStripMenuItem("Actualizar ahora", null, (sender, e) => Refresh());
+        refresh = new ToolStripMenuItem("Actualizar batería", null, (sender, e) => Refresh());
+        checkUpdate = new ToolStripMenuItem("Buscar actualizaciones", null, (sender, e) => CheckUpdates(true));
+        installUpdate = new ToolStripMenuItem { Visible = false };
+        installUpdate.Click += (sender, e) => ConfirmUpdate();
         startup = new ToolStripMenuItem("Iniciar con Windows", null, ToggleStartup);
         miceMenu = new ToolStripMenuItem("Elegir mouse");
         headphonesMenu = new ToolStripMenuItem("Elegir audífonos");
         menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[] {
             status, headphoneStatus, miceMenu, headphonesMenu, refresh, startup, new ToolStripSeparator(),
+            checkUpdate, installUpdate, new ToolStripSeparator(),
             new ToolStripMenuItem("Salir", null, (sender, e) => ExitThread())
         });
         menu.Opening += (sender, e) =>
@@ -90,10 +103,90 @@ internal sealed class BatteryTray : ApplicationContext
         timer = new System.Windows.Forms.Timer { Interval = 1 };
         timer.Tick += (sender, e) =>
         {
-            timer.Interval = 30000;
+            if (timer.Interval == 1)
+            {
+                timer.Interval = 30000;
+                if (BootUpdateState.ShouldCheck())
+                    CheckUpdates(false);
+            }
             Refresh();
         };
         timer.Start();
+    }
+
+    private async void CheckUpdates(bool manual)
+    {
+        if (updateBusy || closing)
+            return;
+
+        SetUpdateBusy(true);
+        UpdateCandidate result = null;
+        bool failed = false;
+        try
+        {
+            result = await Task.Run(() => ReleaseUpdater.Check());
+        }
+        catch (Exception)
+        {
+            failed = true;
+        }
+        if (closing)
+            return;
+
+        if (!failed)
+            availableUpdate = result;
+        installUpdate.Visible = availableUpdate != null;
+        if (availableUpdate != null)
+            installUpdate.Text = "Instalar actualización " + availableUpdate.Tag;
+        SetUpdateBusy(false);
+        if (!manual)
+            return;
+
+        if (failed)
+            MessageBox.Show("No se pudo consultar GitHub. Revisa tu conexión y vuelve a intentarlo.",
+                "HuBattery", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        else if (result == null)
+            MessageBox.Show("HuBattery v" + ReleaseUpdater.CurrentVersion + " está al día.",
+                "HuBattery", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        else
+            ConfirmUpdate();
+    }
+
+    private async void ConfirmUpdate()
+    {
+        if (updateBusy || closing || availableUpdate == null)
+            return;
+
+        UpdateCandidate selected = availableUpdate;
+        if (MessageBox.Show("HuBattery " + selected.Tag + " está disponible. ¿Quieres descargarla e instalarla?\n\n" +
+            "HuBattery se reiniciará al terminar.", "HuBattery", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
+            MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+            return;
+
+        SetUpdateBusy(true);
+        try
+        {
+            await Task.Run(() => PortableUpdate.Prepare(selected, Application.ExecutablePath));
+        }
+        catch (Exception error)
+        {
+            if (!closing)
+            {
+                SetUpdateBusy(false);
+                MessageBox.Show("No se pudo preparar la actualización.\n\n" + error.Message,
+                    "HuBattery", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            return;
+        }
+        if (!closing)
+            ExitThread();
+    }
+
+    private void SetUpdateBusy(bool value)
+    {
+        updateBusy = value;
+        checkUpdate.Enabled = !value;
+        installUpdate.Enabled = !value;
     }
 
     private async void Refresh()
