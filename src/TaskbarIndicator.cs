@@ -13,10 +13,14 @@ internal sealed class TaskbarIndicator : Form
     private const int ExtendedFrameBounds = 9;
     private const int KeepPositionAndFocus = 0x0013;
     private const int ShowWindow = 0x0040;
+    internal const int SegmentWidth = 64;
+    internal const int IndicatorHeight = 24;
     private static readonly IntPtr TopmostWindow = new IntPtr(-1);
     private readonly ToolTip tooltip = new ToolTip();
-    private string level = "—";
-    private string paintedLevel;
+    private string mouseLevel = "—";
+    private string headphoneLevel;
+    private string paintedMouseLevel;
+    private string paintedHeadphoneLevel;
     private Rectangle paintedBounds;
     private Color paintedInk;
     private int paintedDpi;
@@ -49,14 +53,17 @@ internal sealed class TaskbarIndicator : Form
         }
     }
 
-    internal void SetLevel(int? percent, string status)
+    internal void SetLevels(int? mouse, int? headphones, string status)
     {
-        level = percent.HasValue ? percent.Value.ToString() + "%" : "—";
+        mouseLevel = mouse.HasValue ? mouse.Value.ToString() + "%" : headphones.HasValue ? null : "—";
+        headphoneLevel = headphones.HasValue ? headphones.Value.ToString() + "%" : null;
         AccessibleName = status;
         tooltip.SetToolTip(this, status);
         if (Visible)
             UpdatePlacement();
     }
+
+    internal int LogicalWidth { get { return mouseLevel != null && headphoneLevel != null ? 2 * SegmentWidth : SegmentWidth; } }
 
     // Return true when this taskbar supports the wide indicator, including while auto-hidden.
     internal bool UpdatePlacement()
@@ -74,8 +81,8 @@ internal sealed class TaskbarIndicator : Form
         int dpi = GetDpiForWindow(taskbar);
         if (dpi == 0)
             dpi = 96;
-        int width = Scale(64, dpi);
-        int height = Scale(24, dpi);
+        int width = Scale(LogicalWidth, dpi);
+        int height = Scale(IndicatorHeight, dpi);
         var bounds = new Rectangle(tray.Left - width - Scale(4, dpi),
             bar.Top + (bar.Height - height) / 2, width, height);
         if (!bar.Contains(bounds))
@@ -92,7 +99,8 @@ internal sealed class TaskbarIndicator : Form
         }
 
         Color ink = TaskbarInk();
-        if (bounds != paintedBounds || dpi != paintedDpi || level != paintedLevel || ink != paintedInk)
+        if (bounds != paintedBounds || dpi != paintedDpi || mouseLevel != paintedMouseLevel ||
+            headphoneLevel != paintedHeadphoneLevel || ink != paintedInk)
         {
             if (!PaintIndicator(bounds, dpi, ink))
             {
@@ -102,7 +110,8 @@ internal sealed class TaskbarIndicator : Form
 
             paintedBounds = bounds;
             paintedDpi = dpi;
-            paintedLevel = level;
+            paintedMouseLevel = mouseLevel;
+            paintedHeadphoneLevel = headphoneLevel;
             paintedInk = ink;
         }
 
@@ -167,31 +176,57 @@ internal sealed class TaskbarIndicator : Form
         }
     }
 
-    private void DrawIndicator(Bitmap bitmap, int dpi, Color ink)
+    internal void DrawIndicator(Bitmap bitmap, int dpi, Color ink)
     {
         using (Graphics graphics = Graphics.FromImage(bitmap))
         using (var outline = new Pen(ink, 1.5f))
         using (var brush = new SolidBrush(ink))
         using (var font = new Font("Segoe UI", 14, FontStyle.Regular, GraphicsUnit.Pixel))
         using (var label = new StringFormat(StringFormat.GenericTypographic))
-        using (var mouse = new GraphicsPath())
         {
             // Fully transparent pixels pass clicks through a layered window to Explorer.
             graphics.Clear(Color.FromArgb(1, 0, 0, 0));
             graphics.ScaleTransform(dpi / 96f, dpi / 96f);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            outline.StartCap = outline.EndCap = LineCap.Round;
+            label.LineAlignment = StringAlignment.Center;
+            if (mouseLevel != null)
+            {
+                DrawMouse(graphics, outline);
+                graphics.DrawString(mouseLevel, font, brush, new RectangleF(24, 0, 40, IndicatorHeight), label);
+            }
+            if (headphoneLevel != null)
+            {
+                if (mouseLevel != null)
+                    graphics.TranslateTransform(SegmentWidth, 0);
+                DrawHeadphones(graphics, outline, brush);
+                graphics.DrawString(headphoneLevel, font, brush, new RectangleF(24, 0, 40, IndicatorHeight), label);
+            }
+        }
+    }
+
+    private static void DrawMouse(Graphics graphics, Pen outline)
+    {
+        using (var mouse = new GraphicsPath())
+        {
             mouse.AddArc(4, 2.5f, 8, 8, 180, 90);
             mouse.AddArc(10, 2.5f, 8, 8, 270, 90);
             mouse.AddArc(10, 13.5f, 8, 8, 0, 90);
             mouse.AddArc(4, 13.5f, 8, 8, 90, 90);
             mouse.CloseFigure();
             graphics.DrawPath(outline, mouse);
-            outline.StartCap = outline.EndCap = LineCap.Round;
-            graphics.DrawLine(outline, 11, 3, 11, 9);
-            label.LineAlignment = StringAlignment.Center;
-            graphics.DrawString(level, font, brush, new RectangleF(24, 0, 40, 24), label);
         }
+        graphics.DrawLine(outline, 11, 3, 11, 9);
+    }
+
+    private static void DrawHeadphones(Graphics graphics, Pen outline, Brush ink)
+    {
+        graphics.DrawArc(outline, 4, 4, 16, 16, 180, 180);
+        graphics.DrawLine(outline, 4, 12, 4, 17);
+        graphics.DrawLine(outline, 20, 12, 20, 17);
+        graphics.FillRectangle(ink, 4.5f, 12.5f, 3.5f, 7);
+        graphics.FillRectangle(ink, 16, 12.5f, 3.5f, 7);
     }
 
     private bool ApplyBitmap(Bitmap bitmap, Point position)

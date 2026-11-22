@@ -1,13 +1,16 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using Microsoft.Win32.SafeHandles;
 
 internal static class LogitechProtocolTests
 {
+    [STAThread]
     private static int Main()
     {
         try
@@ -21,8 +24,11 @@ internal static class LogitechProtocolTests
             TestLegacyRegister();
             TestVendorBatteryReports();
             TestNewMouseCatalog();
+            TestHeadsetReports();
+            TestBluetoothAudioClassification();
+            TestIndependentSelectionAndRendering();
             TestWindowsTransport();
-            Console.WriteLine("HID: 10 pruebas aprobadas.");
+            Console.WriteLine("HuBattery: 13 pruebas aprobadas.");
             return 0;
         }
         catch (InvalidOperationException error)
@@ -52,7 +58,7 @@ internal static class LogitechProtocolTests
     private static void TestUnifiedPercentage()
     {
         var replies = new ReceiverReplies(3, true, 0, false, 0);
-        MouseReading reading = Read(replies);
+        BatteryReading reading = Read(replies);
         Verify(reading != null && reading.Percent == 0 && reading.Name == ReceiverReplies.DeviceName &&
             reading.Id == "receiver:2" && reading.Connection == "Logi Bolt",
             "No se aceptó 0 % real o no se reconstruyó el nombre de varios fragmentos.");
@@ -61,7 +67,7 @@ internal static class LogitechProtocolTests
     private static void TestLegacyPercentage()
     {
         var replies = new ReceiverReplies(5, false, 0, true, 61);
-        MouseReading reading = Read(replies);
+        BatteryReading reading = Read(replies);
         Verify(reading != null && reading.Percent == 61, "El trackball no pudo usar Battery Status.");
     }
 
@@ -103,7 +109,7 @@ internal static class LogitechProtocolTests
                 request[3] == 0x0D, "Consulta de carga antigua incorrecta.");
             return new byte[] { 0x10, 2, 0x81, 0x0D, 78, 0, 0 };
         };
-        MouseReading reading = LogitechBattery.ReadLegacySlot(2, "receiver", "Nano", pairing, charge);
+        BatteryReading reading = LogitechBattery.ReadLegacySlot(2, "receiver", "Nano", pairing, charge);
         Verify(reading != null && reading.Percent == 78 && reading.Connection == "Nano",
             "No se obtuvo el porcentaje HID++ 1.0 del trackball.");
         pairedKind = 1;
@@ -159,6 +165,63 @@ internal static class LogitechProtocolTests
             @"\\?\hid#vid_" + identifier + "&mi_02&col03#sample", out id);
         Verify(model != null && model.Connection == connection && VendorMouseBattery.IsBatteryCollection(model, expected) &&
             !VendorMouseBattery.IsBatteryCollection(model, wrong), "Identificación HID incorrecta para " + identifier);
+    }
+
+    private static void TestHeadsetReports()
+    {
+        Verify(UsbHeadsetBattery.Decode(new byte[] { 0, 0xB0, 3, 78, 3 }, UsbHeadsetBattery.Protocol.Nova7) == 78 &&
+            UsbHeadsetBattery.Decode(new byte[] { 0xB0, 2, 78, 3 }, UsbHeadsetBattery.Protocol.Nova7) == null &&
+            UsbHeadsetBattery.Decode(new byte[] { 0xB0, 3, 3, 3 }, UsbHeadsetBattery.Protocol.Nova7Steps) == 75 &&
+            UsbHeadsetBattery.Decode(new byte[] { 0xB0, 3, 0, 82, 0 }, UsbHeadsetBattery.Protocol.Nova5) == 82,
+            "Los reportes Nova no se interpretaron correctamente.");
+        Verify(UsbHeadsetBattery.Decode(new byte[] { 0x21, 0xBB, 0x0B, 86 }, UsbHeadsetBattery.Protocol.CloudAlpha) == 86 &&
+            UsbHeadsetBattery.Decode(new byte[] { 0x21, 0xBB, 0x23, 1 }, UsbHeadsetBattery.Protocol.CloudAlpha) == null &&
+            UsbHeadsetBattery.Decode(new byte[] { 0x51, 2, 67 }, UsbHeadsetBattery.Protocol.CloudAlpha2) == 67 &&
+            UsbHeadsetBattery.Decode(new byte[] { 0x66, 0x0D, 0x0E, 0xD7, 48 }, UsbHeadsetBattery.Protocol.CloudIII) == 48 &&
+            UsbHeadsetBattery.Decode(new byte[] { 0x66, 0x89, 0, 0, 48 }, UsbHeadsetBattery.Protocol.CloudIII) == null,
+            "Los reportes HyperX no se interpretaron correctamente.");
+        Verify(UsbHeadsetBattery.Decode(new byte[] { 0x64, 0, 0xDA, 0xB1, 1 }, UsbHeadsetBattery.Protocol.VoidElite) == 90 &&
+            UsbHeadsetBattery.Decode(new byte[] { 0x64, 0, 90, 0xB1, 0 }, UsbHeadsetBattery.Protocol.VoidElite) == null,
+            "Los reportes Corsair no se interpretaron correctamente.");
+    }
+
+    private static void TestBluetoothAudioClassification()
+    {
+        Verify(PeripheralBattery.IsBluetoothAudio(@"BTHHFENUM\BthHFPAudio") &&
+            PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_VID&1234") &&
+            PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000111e-0000-1000-8000-00805f9b34fb}_VID&1234") &&
+            !PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{00001124-0000-1000-8000-00805f9b34fb}_VID&1234") &&
+            !PeripheralBattery.IsBluetoothAudio(@"BTHENUM\{0000110b-0000-1000-8000-012345678912}_VID&1234"),
+            "Clasificación incorrecta de servicios de audio Bluetooth.");
+    }
+
+    private static void TestIndependentSelectionAndRendering()
+    {
+        var headphones = new BatteryReading("h1", "Audífonos A", 0, "Bluetooth", PeripheralKind.Headphones);
+        var mouse = new BatteryReading("m1", "Mouse A", 70, "USB");
+        var preferred = new BatteryReading("h2", "Audífonos B", 82, "USB", PeripheralKind.Headphones);
+        BatteryReading[] readings = { headphones, mouse, preferred };
+        Verify(BatteryTray.SelectReading(readings, PeripheralKind.Mouse, "h2") == mouse &&
+            BatteryTray.SelectReading(readings, PeripheralKind.Headphones, "H2") == preferred &&
+            BatteryTray.SelectReading(new[] { mouse }, PeripheralKind.Headphones, "h2") == null,
+            "La selección de mouse y audífonos no es independiente.");
+
+        using (var menu = new ContextMenuStrip())
+        using (var indicator = new TaskbarIndicator(menu, () => { }))
+        {
+            indicator.SetLevels(null, headphones.Percent, "Audífonos");
+            Verify(indicator.LogicalWidth == 64, "Audífonos solos deben ocupar un segmento.");
+            indicator.SetLevels(mouse.Percent, preferred.Percent, "Mouse y audífonos");
+            Verify(indicator.LogicalWidth == 128, "Mouse y audífonos deben ocupar dos segmentos.");
+            using (var bitmap = new Bitmap(128, 24))
+            {
+                indicator.DrawIndicator(bitmap, 96, Color.White);
+                Verify(bitmap.GetPixel(72, 15).A > 100 || bitmap.GetPixel(70, 15).A > 100,
+                    "El símbolo de audífonos no se dibujó en su segmento.");
+            }
+            indicator.SetLevels(mouse.Percent, null, "Mouse");
+            Verify(indicator.LogicalWidth == 64, "Mouse solo debe volver a ocupar un segmento.");
+        }
     }
 
     private static void TestWindowsTransport()
@@ -218,7 +281,7 @@ internal static class LogitechProtocolTests
         return bytes;
     }
 
-    private static MouseReading Read(ReceiverReplies receiver)
+    private static BatteryReading Read(ReceiverReplies receiver)
     {
         return new LogitechBattery.Protocol(receiver.Exchange).ReadSlot(2, "receiver", "Logi Bolt");
     }

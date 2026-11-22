@@ -11,7 +11,7 @@ internal static class HidBattery
     private const ushort DeviceControlsPage = 0x06;
     private const ushort BatteryStrength = 0x20;
 
-    internal static IEnumerable<MouseReading> Read(string[] paths)
+    internal static IEnumerable<BatteryReading> Read(string[] paths)
     {
         foreach (string path in paths)
         {
@@ -32,7 +32,7 @@ internal static class HidBattery
                     ? product.ToString().Trim() : "";
                 Guid? container = DeviceNodes.ContainerForHidPath(path);
                 string id = container.HasValue ? container.Value.ToString() : path;
-                yield return new MouseReading(id, name.Length == 0 ? "Mouse HID" : name, percent.Value, "HID estándar");
+                yield return new BatteryReading(id, name.Length == 0 ? "Mouse HID" : name, percent.Value, "HID estándar");
             }
         }
     }

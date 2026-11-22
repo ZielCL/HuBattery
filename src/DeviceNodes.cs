@@ -10,6 +10,7 @@ internal static class DeviceNodes
     private const uint ByClass = 0x200;
     private const int BufferSmall = 0x1A;
     private const string MouseClass = "{4D36E96F-E325-11CE-BFC1-08002BE10318}";
+    private const string AudioEndpointClass = "{C166523C-FE0C-4A94-A586-F1A80CFBBF3E}";
     private static readonly Guid HidClass = new Guid("4d1e55b2-f16f-11cf-88cb-001111000030");
     private static readonly Guid SystemContainer = new Guid("00000000-0000-0000-ffff-ffffffffffff");
     private static readonly Guid DeviceProperties = new Guid("a45c254e-df1c-4efd-8020-67d146a850e0");
@@ -41,9 +42,14 @@ internal static class DeviceNodes
 
     internal static IEnumerable<uint> BluetoothNodes()
     {
-        foreach (string name in new[] { "BTHENUM", "BTHLE", "BTHLEDEVICE" })
+        foreach (string name in new[] { "BTHENUM", "BTHLE", "BTHLEDEVICE", "BTHHFENUM" })
             foreach (uint node in Nodes(name, Present | ByEnumerator))
                 yield return node;
+    }
+
+    internal static IEnumerable<uint> AudioEndpoints()
+    {
+        return Nodes(AudioEndpointClass, Present | ByClass);
     }
 
     private static IEnumerable<uint> Nodes(string filter, uint flags)
@@ -101,11 +107,17 @@ internal static class DeviceNodes
 
     internal static bool IsBluetooth(uint node)
     {
+        string id = InstanceId(node);
+        return id.StartsWith("BTHENUM\\", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("BTHLE\\", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("BTHLEDEVICE\\", StringComparison.OrdinalIgnoreCase) ||
+            id.StartsWith("BTHHFENUM\\", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static string InstanceId(uint node)
+    {
         var name = new StringBuilder(512);
-        return CM_Get_Device_IDW(node, name, (uint)name.Capacity, 0) == 0 &&
-            (name.ToString().StartsWith("BTHENUM\\", StringComparison.OrdinalIgnoreCase) ||
-             name.ToString().StartsWith("BTHLE\\", StringComparison.OrdinalIgnoreCase) ||
-             name.ToString().StartsWith("BTHLEDEVICE\\", StringComparison.OrdinalIgnoreCase));
+        return CM_Get_Device_IDW(node, name, (uint)name.Capacity, 0) == 0 ? name.ToString() : "";
     }
 
     internal static int? BatteryFor(uint node)

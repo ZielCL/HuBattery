@@ -39,34 +39,40 @@ internal sealed class BatteryTray : ApplicationContext
     private readonly NotifyIcon tray;
     private readonly ContextMenuStrip menu;
     private readonly ToolStripMenuItem status;
+    private readonly ToolStripMenuItem headphoneStatus;
     private readonly ToolStripMenuItem refresh;
     private readonly ToolStripMenuItem startup;
     private readonly ToolStripMenuItem miceMenu;
+    private readonly ToolStripMenuItem headphonesMenu;
     private readonly System.Windows.Forms.Timer timer;
     private readonly System.Windows.Forms.Timer placementTimer;
     private readonly TaskbarIndicator indicator;
     private Icon icon;
     private int? displayedPercent;
-    private MouseReading[] readings = new MouseReading[0];
-    private string preferredId;
+    private BatteryReading[] readings = new BatteryReading[0];
+    private string preferredMouse;
+    private string preferredHeadphones;
     private bool busy;
     private bool closing;
 
     internal BatteryTray()
     {
         status = new ToolStripMenuItem { Enabled = false };
+        headphoneStatus = new ToolStripMenuItem { Enabled = false };
         refresh = new ToolStripMenuItem("Actualizar ahora", null, (sender, e) => Refresh());
         startup = new ToolStripMenuItem("Iniciar con Windows", null, ToggleStartup);
         miceMenu = new ToolStripMenuItem("Elegir mouse");
+        headphonesMenu = new ToolStripMenuItem("Elegir audífonos");
         menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[] {
-            status, miceMenu, refresh, startup, new ToolStripSeparator(),
+            status, headphoneStatus, miceMenu, headphonesMenu, refresh, startup, new ToolStripSeparator(),
             new ToolStripMenuItem("Salir", null, (sender, e) => ExitThread())
         });
         menu.Opening += (sender, e) =>
         {
             UpdateStartupMenu();
-            UpdateMiceMenu();
+            PopulateDeviceMenu(miceMenu, PeripheralKind.Mouse, preferredMouse);
+            PopulateDeviceMenu(headphonesMenu, PeripheralKind.Headphones, preferredHeadphones);
         };
         tray = new NotifyIcon { ContextMenuStrip = menu };
         tray.MouseClick += (sender, e) =>
@@ -76,7 +82,7 @@ internal sealed class BatteryTray : ApplicationContext
         };
 
         indicator = new TaskbarIndicator(menu, Refresh);
-        Display(null, "Consultando batería…");
+        Display("Consultando batería…");
         PlaceIndicator();
         placementTimer = new System.Windows.Forms.Timer { Interval = 500 };
         placementTimer.Tick += (sender, e) => PlaceIndicator();
@@ -97,14 +103,14 @@ internal sealed class BatteryTray : ApplicationContext
 
         busy = true;
         refresh.Enabled = false;
-        string message = "Sin lectura · Mueve o conecta el mouse";
+        string message = "Sin lectura · Enciende o conecta el dispositivo";
         try
         {
-            readings = await Task.Run(() => MouseBattery.Read());
+            readings = await Task.Run(() => PeripheralBattery.Read());
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            readings = new MouseReading[0];
+            readings = new BatteryReading[0];
             message = "No se pudo consultar el dispositivo";
         }
         finally
@@ -115,22 +121,25 @@ internal sealed class BatteryTray : ApplicationContext
         if (closing)
             return;
 
-        Display(SelectedMouse(), message);
+        Display(message);
         refresh.Enabled = true;
     }
 
-    private MouseReading SelectedMouse()
+    internal static BatteryReading SelectReading(BatteryReading[] devices, PeripheralKind kind, string preferred)
     {
-        return readings.FirstOrDefault(reading => reading.Id == preferredId) ?? readings.FirstOrDefault();
+        return devices.FirstOrDefault(reading => reading.Kind == kind &&
+            string.Equals(reading.Id, preferred, StringComparison.OrdinalIgnoreCase)) ??
+            devices.FirstOrDefault(reading => reading.Kind == kind);
     }
 
-    private void UpdateMiceMenu()
+    private void PopulateDeviceMenu(ToolStripMenuItem deviceMenu, PeripheralKind kind, string preferred)
     {
-        while (miceMenu.DropDownItems.Count > 0)
-            miceMenu.DropDownItems[0].Dispose();
-        miceMenu.Visible = readings.Length > 1;
-        MouseReading selected = SelectedMouse();
-        foreach (MouseReading reading in readings)
+        while (deviceMenu.DropDownItems.Count > 0)
+            deviceMenu.DropDownItems[0].Dispose();
+        BatteryReading[] devices = readings.Where(reading => reading.Kind == kind).ToArray();
+        deviceMenu.Visible = devices.Length > 1;
+        BatteryReading selected = SelectReading(devices, kind, preferred);
+        foreach (BatteryReading reading in devices)
         {
             var item = new ToolStripMenuItem(reading.Name + " · " + reading.Connection + " · " + reading.Percent + "%")
             {
@@ -138,21 +147,35 @@ internal sealed class BatteryTray : ApplicationContext
             };
             item.Click += (sender, e) =>
             {
-                preferredId = reading.Id;
-                Display(SelectedMouse(), "Sin lectura");
+                if (kind == PeripheralKind.Mouse)
+                    preferredMouse = reading.Id;
+                else
+                    preferredHeadphones = reading.Id;
+                Display("Sin lectura");
             };
-            miceMenu.DropDownItems.Add(item);
+            deviceMenu.DropDownItems.Add(item);
         }
     }
 
-    private void Display(MouseReading reading, string message)
+    private void Display(string message)
     {
-        int? percent = reading == null ? (int?)null : reading.Percent;
-        string label = reading == null ? message : reading.Name + " · " + reading.Percent + "%";
-        status.Text = label;
-        tray.Text = label.Length > 63 ? label.Substring(0, 60) + "…" : label;
-        indicator.SetLevel(percent, tray.Text);
+        BatteryReading mouse = SelectReading(readings, PeripheralKind.Mouse, preferredMouse);
+        BatteryReading headphones = SelectReading(readings, PeripheralKind.Headphones, preferredHeadphones);
+        string mouseLabel = mouse == null ? null : Describe(mouse);
+        string headphonesLabel = headphones == null ? null : Describe(headphones);
+        bool both = mouse != null && headphones != null;
+        status.Text = mouseLabel ?? headphonesLabel ?? message;
+        headphoneStatus.Visible = both;
+        headphoneStatus.Text = both ? headphonesLabel : "";
 
+        string trayLabel = both ? "Mouse " + mouse.Percent + "% · Audífonos " + headphones.Percent + "%" : status.Text;
+        tray.Text = trayLabel.Length > 63 ? trayLabel.Substring(0, 60) + "…" : trayLabel;
+        string indicatorLabel = both ? mouseLabel + Environment.NewLine + headphonesLabel : status.Text;
+        indicator.SetLevels(mouse == null ? (int?)null : mouse.Percent,
+            headphones == null ? (int?)null : headphones.Percent, indicatorLabel);
+
+        BatteryReading primary = mouse ?? headphones;
+        int? percent = primary == null ? (int?)null : primary.Percent;
         if (icon != null && displayedPercent == percent)
             return;
 
@@ -162,6 +185,11 @@ internal sealed class BatteryTray : ApplicationContext
         tray.Icon = icon;
         if (previous != null)
             previous.Dispose();
+    }
+
+    private static string Describe(BatteryReading reading)
+    {
+        return reading.Name + " · " + reading.Percent + "%";
     }
 
     private void PlaceIndicator()

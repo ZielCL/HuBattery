@@ -16,7 +16,7 @@ internal static class RazerBattery
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Dictionary<ushort, Model> Models = BuildCatalog();
 
-    internal static IEnumerable<MouseReading> Read(string[] paths)
+    internal static IEnumerable<BatteryReading> Read(string[] paths)
     {
         var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string path in paths.OrderBy(path => path.IndexOf("&col", StringComparison.OrdinalIgnoreCase) >= 0))
@@ -36,7 +36,7 @@ internal static class RazerBattery
             if (percent.HasValue)
             {
                 found.Add(key);
-                yield return new MouseReading(key, "Razer " + model.Name, percent.Value, "USB");
+                yield return new BatteryReading(key, "Razer " + model.Name, percent.Value, "USB");
             }
         }
     }

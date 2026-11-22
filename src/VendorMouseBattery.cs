@@ -65,7 +65,7 @@ internal static class VendorMouseBattery
         { "VID_3554&PID_F505", new Model("VGN Dragonfly 4K", Protocol.Compx) }
     };
 
-    internal static IEnumerable<MouseReading> Read(string[] paths)
+    internal static IEnumerable<BatteryReading> Read(string[] paths)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string path in paths)
@@ -90,7 +90,7 @@ internal static class VendorMouseBattery
                 {
                     int? level = ReadSinowealth(handle);
                     if (level.HasValue && seen.Add(id))
-                        yield return new MouseReading(id, model.Name, level.Value, model.Connection);
+                        yield return new BatteryReading(id, model.Name, level.Value, model.Connection);
                     continue;
                 }
             }
@@ -103,7 +103,7 @@ internal static class VendorMouseBattery
                 {
                     int? level = ReadOutputBattery(channel, caps, model.Reader);
                     if (level.HasValue && seen.Add(id))
-                        yield return new MouseReading(id, model.Name, level.Value, model.Connection);
+                        yield return new BatteryReading(id, model.Name, level.Value, model.Connection);
                 }
             }
         }

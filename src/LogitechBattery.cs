@@ -17,7 +17,7 @@ internal static class LogitechBattery
     private const byte ShortReportId = 0x10;
     private const int ShortReportLength = 7;
 
-    internal static IEnumerable<MouseReading> Read(string[] paths)
+    internal static IEnumerable<BatteryReading> Read(string[] paths)
     {
         foreach (var receiver in paths.Where(path => ReceiverName(path) != null)
             .GroupBy(ReceiverKey, StringComparer.OrdinalIgnoreCase))
@@ -52,7 +52,7 @@ internal static class LogitechBattery
                 int slots = name == "Nano" ? 2 : 6;
                 for (byte slot = 1; slot <= slots; slot++)
                 {
-                    MouseReading reading = protocol.ReadSlot(slot, receiver.Key, name);
+                    BatteryReading reading = protocol.ReadSlot(slot, receiver.Key, name);
                     if (reading == null && legacy)
                         reading = ReadLegacySlot(slot, receiver.Key, name, request => shortChannel.Send(request)
                             ? longChannel.Receive(ReportLength, reply => ReplyMatches(reply, ReportId, request))
@@ -127,7 +127,7 @@ internal static class LogitechBattery
         return reply[0] == reportId && reply[1] == request[1] && reply[2] == request[2] && reply[3] == request[3];
     }
 
-    internal static MouseReading ReadLegacySlot(byte slot, string id, string connection,
+    internal static BatteryReading ReadLegacySlot(byte slot, string id, string connection,
         Func<byte[], byte[]> readPairing, Func<byte[], byte[]> readRegister)
     {
         byte selector = (byte)(0x20 + slot - 1);
@@ -142,7 +142,7 @@ internal static class LogitechBattery
         if (charge == null || charge[4] > 100)
             return null;
         string name = kind == 8 ? "Trackball Logitech" : "Mouse Logitech";
-        return new MouseReading(id + ":" + slot, name + " " + slot, charge[4], connection);
+        return new BatteryReading(id + ":" + slot, name + " " + slot, charge[4], connection);
     }
 
     internal sealed class Protocol
@@ -155,7 +155,7 @@ internal static class LogitechBattery
             this.exchange = exchange;
         }
 
-        internal MouseReading ReadSlot(byte slot, string receiverId, string connection)
+        internal BatteryReading ReadSlot(byte slot, string receiverId, string connection)
         {
             byte device = FindFeature(slot, DeviceNameAndType);
             if (device == 0)
@@ -170,7 +170,7 @@ internal static class LogitechBattery
                 return null;
 
             string name = ReadName(slot, device) ?? (kind[4] == Trackball ? "Trackball Logitech" : "Mouse Logitech");
-            return new MouseReading(receiverId + ":" + slot, name, percent.Value, connection);
+            return new BatteryReading(receiverId + ":" + slot, name, percent.Value, connection);
         }
 
         private int? ReadBattery(byte slot)
