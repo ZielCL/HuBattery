@@ -144,12 +144,18 @@ internal static class DeviceNodes
 
     internal static bool HasAudioCategory(uint node)
     {
+        return HasCategory(node, "Audio.", true);
+    }
+
+    internal static bool HasCategory(uint node, string expected, bool prefix)
+    {
         const uint StringList = 0x2012;
         byte[] value = Read(node, DeviceCategory, StringList);
         if (value == null)
             return false;
         foreach (string category in Encoding.Unicode.GetString(value).Split('\0'))
-            if (category.StartsWith("Audio.", StringComparison.OrdinalIgnoreCase))
+            if (prefix ? category.StartsWith(expected, StringComparison.OrdinalIgnoreCase) :
+                category.Equals(expected, StringComparison.OrdinalIgnoreCase))
                 return true;
         return false;
     }

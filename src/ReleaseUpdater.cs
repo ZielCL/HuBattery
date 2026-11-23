@@ -10,7 +10,7 @@ using System.Web.Script.Serialization;
 using Microsoft.Win32;
 
 [assembly: AssemblyInformationalVersion(ReleaseUpdater.CurrentVersion)]
-[assembly: AssemblyFileVersion("0.4.3.0")]
+[assembly: AssemblyFileVersion("0.5.0.0")]
 
 internal static class BootUpdateState
 {
@@ -98,7 +98,7 @@ internal sealed class UpdateCandidate
 
 internal static class ReleaseUpdater
 {
-    internal const string CurrentVersion = "0.4.3-beta.1";
+    internal const string CurrentVersion = "0.5.0-beta.1";
     private const string Releases = "https://api.github.com/repos/ZielCL/HuBattery/releases?per_page=30";
     private const string Downloads = "https://github.com/ZielCL/HuBattery/releases/download/";
     private const int MaxReleaseBytes = 4 * 1024 * 1024;

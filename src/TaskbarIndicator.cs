@@ -19,8 +19,10 @@ internal sealed class TaskbarIndicator : Form
     private readonly ToolTip tooltip = new ToolTip();
     private string mouseLevel = "—";
     private string headphoneLevel;
+    private string controllerLevel;
     private string paintedMouseLevel;
     private string paintedHeadphoneLevel;
+    private string paintedControllerLevel;
     private Rectangle paintedBounds;
     private Color paintedInk;
     private int paintedDpi;
@@ -53,17 +55,22 @@ internal sealed class TaskbarIndicator : Form
         }
     }
 
-    internal void SetLevels(int? mouse, int? headphones, string status)
+    internal void SetLevels(string mouse, string headphones, string controller, string status)
     {
-        mouseLevel = mouse.HasValue ? mouse.Value.ToString() + "%" : headphones.HasValue ? null : "—";
-        headphoneLevel = headphones.HasValue ? headphones.Value.ToString() + "%" : null;
+        mouseLevel = mouse ?? (headphones == null && controller == null ? "—" : null);
+        headphoneLevel = headphones;
+        controllerLevel = controller;
         AccessibleName = status;
         tooltip.SetToolTip(this, status);
         if (Visible)
             UpdatePlacement();
     }
 
-    internal int LogicalWidth { get { return mouseLevel != null && headphoneLevel != null ? 2 * SegmentWidth : SegmentWidth; } }
+    internal int LogicalWidth
+    {
+        get { return SegmentWidth * ((mouseLevel == null ? 0 : 1) + (headphoneLevel == null ? 0 : 1) +
+            (controllerLevel == null ? 0 : 1)); }
+    }
 
     // Return true when this taskbar supports the wide indicator, including while auto-hidden.
     internal bool UpdatePlacement()
@@ -100,7 +107,7 @@ internal sealed class TaskbarIndicator : Form
 
         Color ink = TaskbarInk();
         if (bounds != paintedBounds || dpi != paintedDpi || mouseLevel != paintedMouseLevel ||
-            headphoneLevel != paintedHeadphoneLevel || ink != paintedInk)
+            headphoneLevel != paintedHeadphoneLevel || controllerLevel != paintedControllerLevel || ink != paintedInk)
         {
             if (!PaintIndicator(bounds, dpi, ink))
             {
@@ -112,6 +119,7 @@ internal sealed class TaskbarIndicator : Form
             paintedDpi = dpi;
             paintedMouseLevel = mouseLevel;
             paintedHeadphoneLevel = headphoneLevel;
+            paintedControllerLevel = controllerLevel;
             paintedInk = ink;
         }
 
@@ -195,15 +203,40 @@ internal sealed class TaskbarIndicator : Form
             {
                 DrawMouse(graphics, outline);
                 graphics.DrawString(mouseLevel, font, brush, new RectangleF(24, 0, 40, IndicatorHeight), label);
+                graphics.TranslateTransform(SegmentWidth, 0);
             }
             if (headphoneLevel != null)
             {
-                if (mouseLevel != null)
-                    graphics.TranslateTransform(SegmentWidth, 0);
                 DrawHeadphones(graphics, outline, brush);
                 graphics.DrawString(headphoneLevel, font, brush, new RectangleF(24, 0, 40, IndicatorHeight), label);
+                graphics.TranslateTransform(SegmentWidth, 0);
+            }
+            if (controllerLevel != null)
+            {
+                DrawController(graphics, outline, brush);
+                graphics.DrawString(controllerLevel, font, brush, new RectangleF(24, 0, 40, IndicatorHeight), label);
             }
         }
+    }
+
+    private static void DrawController(Graphics graphics, Pen outline, Brush ink)
+    {
+        using (var shape = new GraphicsPath())
+        {
+            shape.AddBezier(7, 6, 4, 6, 3, 10, 2, 15);
+            shape.AddBezier(2, 15, 1, 19, 4, 20, 7, 17);
+            shape.AddLine(7, 17, 9, 15);
+            shape.AddLine(9, 15, 15, 15);
+            shape.AddLine(15, 15, 17, 17);
+            shape.AddBezier(17, 17, 20, 20, 23, 19, 22, 15);
+            shape.AddBezier(22, 15, 21, 10, 20, 6, 17, 6);
+            shape.CloseFigure();
+            graphics.DrawPath(outline, shape);
+        }
+        graphics.DrawLine(outline, 6, 11, 10, 11);
+        graphics.DrawLine(outline, 8, 9, 8, 13);
+        graphics.FillEllipse(ink, 14, 10, 2, 2);
+        graphics.FillEllipse(ink, 17, 9, 2, 2);
     }
 
     private static void DrawMouse(Graphics graphics, Pen outline)

@@ -34,7 +34,9 @@ internal static class HidBattery
                     Caps caps;
                     if (HidP_GetCaps(descriptor, out caps) != Success)
                         continue;
-                    if (caps.UsagePage != 1 || caps.Usage != 2)
+                    if (caps.UsagePage == 1 && (caps.Usage == 4 || caps.Usage == 5))
+                        kind = PeripheralKind.Controller;
+                    else if (caps.UsagePage != 1 || caps.Usage != 2)
                     {
                         if (!path.StartsWith(@"\\?\HID#VID_", StringComparison.OrdinalIgnoreCase))
                             continue;
@@ -47,9 +49,9 @@ internal static class HidBattery
                             continue;
                         kind = PeripheralKind.Headphones;
                     }
-                    bool isUsbAudio = kind == PeripheralKind.Headphones;
-                    percent = ReadFeatureBattery(handle, descriptor, caps, isUsbAudio);
-                    if (!percent.HasValue && isUsbAudio)
+                    bool extended = kind != PeripheralKind.Mouse;
+                    percent = ReadFeatureBattery(handle, descriptor, caps, extended);
+                    if (!percent.HasValue && extended)
                         percent = ReadInputBattery(path, descriptor, caps);
                 }
                 finally { HidD_FreePreparsedData(descriptor); }
@@ -62,19 +64,20 @@ internal static class HidBattery
                 container = container ?? DeviceNodes.ContainerForHidPath(path);
                 string id = container.HasValue ? container.Value.ToString() : path;
                 bool isAudio = kind == PeripheralKind.Headphones;
-                string fallback = isAudio ? audioName ?? "Audio USB" : "Mouse HID";
+                string fallback = isAudio ? audioName ?? "Audio USB" :
+                    kind == PeripheralKind.Controller ? "Mando HID" : "Mouse HID";
                 yield return new BatteryReading(id, name.Length == 0 ? fallback : name, percent.Value,
                     isAudio ? "USB HID estándar" : "HID estándar", kind);
             }
         }
     }
 
-    private static int? ReadFeatureBattery(SafeFileHandle handle, IntPtr descriptor, Caps caps, bool isUsbAudio)
+    private static int? ReadFeatureBattery(SafeFileHandle handle, IntPtr descriptor, Caps caps, bool extended)
     {
         if (caps.FeatureLength == 0 || caps.FeatureValues == 0)
             return null;
 
-        foreach (BatteryField field in BatteryFields(descriptor, Feature, caps.FeatureValues, isUsbAudio))
+        foreach (BatteryField field in BatteryFields(descriptor, Feature, caps.FeatureValues, extended))
         {
             var report = new byte[caps.FeatureLength];
             report[0] = field.Value.ReportId;
@@ -118,9 +121,9 @@ internal static class HidBattery
         }
     }
 
-    private static IEnumerable<BatteryField> BatteryFields(IntPtr descriptor, int type, ushort count, bool isUsbAudio)
+    private static IEnumerable<BatteryField> BatteryFields(IntPtr descriptor, int type, ushort count, bool extended)
     {
-        if (isUsbAudio)
+        if (extended)
             foreach (BatteryField field in FindFields(descriptor, type, count, BatterySystemPage, RelativeCharge))
                 yield return field;
         foreach (BatteryField field in FindFields(descriptor, type, count, DeviceControlsPage, BatteryStrength))

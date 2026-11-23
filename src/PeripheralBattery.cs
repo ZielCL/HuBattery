@@ -2,24 +2,35 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-internal enum PeripheralKind { Mouse, Headphones }
+internal enum PeripheralKind { Mouse, Headphones, Controller }
 
 internal sealed class BatteryReading
 {
     internal readonly string Id;
     internal readonly string Name;
-    internal readonly int Percent;
+    internal readonly int? Percent;
     internal readonly string Connection;
     internal readonly PeripheralKind Kind;
+    internal readonly string Level;
 
     internal BatteryReading(string id, string name, int percent, string connection,
-        PeripheralKind kind = PeripheralKind.Mouse)
+        PeripheralKind kind = PeripheralKind.Mouse, bool approximate = false)
     {
         Id = id;
         Name = name;
         Percent = percent;
+        Level = (approximate ? "~" : "") + percent + "%";
         Connection = connection;
         Kind = kind;
+    }
+
+    internal BatteryReading(string id, string name, string level, string connection)
+    {
+        Id = id;
+        Name = name;
+        Level = level;
+        Connection = connection;
+        Kind = PeripheralKind.Controller;
     }
 }
 
@@ -29,10 +40,12 @@ internal static class PeripheralBattery
     {
         string[] paths = DeviceNodes.HidPaths();
         return RazerBattery.Read(paths).Concat(LogitechBattery.Read(paths)).Concat(VendorMouseBattery.Read(paths))
-            .Concat(UsbHeadsetBattery.Read(paths)).Concat(ReadBluetooth()).Concat(HidBattery.Read(paths))
+            .Concat(UsbHeadsetBattery.Read(paths)).Concat(ReadBluetooth()).Concat(ControllerBattery.Read(paths))
+            .Concat(HidBattery.Read(paths))
             .GroupBy(reading => reading.Kind + ":" + reading.Id, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .OrderBy(reading => reading.Name, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(reading => reading.Connection == "XInput")
+            .ThenBy(reading => reading.Name, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(reading => reading.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -83,15 +96,16 @@ internal static class PeripheralBattery
             }
             else
             {
+                bool isController = entry.Value.Any(node => DeviceNodes.HasCategory(node, "Input.Gaming", false));
                 bool hasEndpoint = endpoints.TryGetValue(entry.Key, out name);
-                if (!hasEndpoint && !entry.Value.Any(node =>
+                if (!isController && !hasEndpoint && !entry.Value.Any(node =>
                     IsBluetoothAudio(DeviceNodes.InstanceId(node)) || DeviceNodes.HasAudioCategory(node)))
                     continue;
 
                 uint device = entry.Value.FirstOrDefault(node => IsBluetoothDevice(DeviceNodes.InstanceId(node)));
                 name = (device == 0 ? null : DeviceNodes.FriendlyName(device)) ?? name ??
-                    DeviceNodes.FriendlyName(battery.Node) ?? "Audio Bluetooth";
-                kind = PeripheralKind.Headphones;
+                    DeviceNodes.FriendlyName(battery.Node) ?? (isController ? "Mando Bluetooth" : "Audio Bluetooth");
+                kind = isController ? PeripheralKind.Controller : PeripheralKind.Headphones;
             }
 
             yield return new BatteryReading(entry.Key.ToString(), name, battery.Level.Value, "Bluetooth", kind);

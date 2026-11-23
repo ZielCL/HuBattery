@@ -44,21 +44,24 @@ internal sealed class BatteryTray : ApplicationContext
     private readonly NotifyIcon tray;
     private readonly ContextMenuStrip menu;
     private readonly ToolStripMenuItem status;
-    private readonly ToolStripMenuItem headphoneStatus;
+    private readonly ToolStripMenuItem secondaryStatus;
+    private readonly ToolStripMenuItem tertiaryStatus;
     private readonly ToolStripMenuItem refresh;
     private readonly ToolStripMenuItem checkUpdate;
     private readonly ToolStripMenuItem installUpdate;
     private readonly ToolStripMenuItem startup;
     private readonly ToolStripMenuItem miceMenu;
     private readonly ToolStripMenuItem headphonesMenu;
+    private readonly ToolStripMenuItem controllersMenu;
     private readonly System.Windows.Forms.Timer timer;
     private readonly System.Windows.Forms.Timer placementTimer;
     private readonly TaskbarIndicator indicator;
     private Icon icon;
-    private int? displayedPercent;
+    private string displayedLevel;
     private BatteryReading[] readings = new BatteryReading[0];
     private string preferredMouse;
     private string preferredHeadphones;
+    private string preferredController;
     private bool busy;
     private bool closing;
     private bool updateBusy;
@@ -67,7 +70,8 @@ internal sealed class BatteryTray : ApplicationContext
     internal BatteryTray()
     {
         status = new ToolStripMenuItem { Enabled = false };
-        headphoneStatus = new ToolStripMenuItem { Enabled = false };
+        secondaryStatus = new ToolStripMenuItem { Enabled = false };
+        tertiaryStatus = new ToolStripMenuItem { Enabled = false };
         refresh = new ToolStripMenuItem("Actualizar batería", null, (sender, e) => Refresh());
         checkUpdate = new ToolStripMenuItem("Buscar actualizaciones", null, (sender, e) => CheckUpdates(true));
         installUpdate = new ToolStripMenuItem { Visible = false };
@@ -75,9 +79,11 @@ internal sealed class BatteryTray : ApplicationContext
         startup = new ToolStripMenuItem("Iniciar con Windows", null, ToggleStartup);
         miceMenu = new ToolStripMenuItem("Elegir mouse");
         headphonesMenu = new ToolStripMenuItem("Elegir audífonos");
+        controllersMenu = new ToolStripMenuItem("Elegir mando");
         menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[] {
-            status, headphoneStatus, miceMenu, headphonesMenu, refresh, startup, new ToolStripSeparator(),
+            status, secondaryStatus, tertiaryStatus, miceMenu, headphonesMenu, controllersMenu,
+            refresh, startup, new ToolStripSeparator(),
             checkUpdate, installUpdate, new ToolStripSeparator(),
             new ToolStripMenuItem("Salir", null, (sender, e) => ExitThread())
         });
@@ -86,6 +92,7 @@ internal sealed class BatteryTray : ApplicationContext
             UpdateStartupMenu();
             PopulateDeviceMenu(miceMenu, PeripheralKind.Mouse, preferredMouse);
             PopulateDeviceMenu(headphonesMenu, PeripheralKind.Headphones, preferredHeadphones);
+            PopulateDeviceMenu(controllersMenu, PeripheralKind.Controller, preferredController);
         };
         tray = new NotifyIcon { ContextMenuStrip = menu };
         tray.MouseClick += (sender, e) =>
@@ -234,7 +241,7 @@ internal sealed class BatteryTray : ApplicationContext
         BatteryReading selected = SelectReading(devices, kind, preferred);
         foreach (BatteryReading reading in devices)
         {
-            var item = new ToolStripMenuItem(reading.Name + " · " + reading.Connection + " · " + reading.Percent + "%")
+            var item = new ToolStripMenuItem(reading.Name + " · " + reading.Connection + " · " + reading.Level)
             {
                 Checked = reading == selected
             };
@@ -242,8 +249,10 @@ internal sealed class BatteryTray : ApplicationContext
             {
                 if (kind == PeripheralKind.Mouse)
                     preferredMouse = reading.Id;
-                else
+                else if (kind == PeripheralKind.Headphones)
                     preferredHeadphones = reading.Id;
+                else
+                    preferredController = reading.Id;
                 Display("Sin lectura");
             };
             deviceMenu.DropDownItems.Add(item);
@@ -254,35 +263,38 @@ internal sealed class BatteryTray : ApplicationContext
     {
         BatteryReading mouse = SelectReading(readings, PeripheralKind.Mouse, preferredMouse);
         BatteryReading headphones = SelectReading(readings, PeripheralKind.Headphones, preferredHeadphones);
-        string mouseLabel = mouse == null ? null : Describe(mouse);
-        string headphonesLabel = headphones == null ? null : Describe(headphones);
-        bool both = mouse != null && headphones != null;
-        status.Text = mouseLabel ?? headphonesLabel ?? message;
-        headphoneStatus.Visible = both;
-        headphoneStatus.Text = both ? headphonesLabel : "";
+        BatteryReading controller = SelectReading(readings, PeripheralKind.Controller, preferredController);
+        BatteryReading[] visible = new[] { mouse, headphones, controller }.Where(reading => reading != null).ToArray();
+        string[] labels = visible.Select(reading => reading.Name + " · " + reading.Level).ToArray();
+        status.Text = labels.Length == 0 ? message : labels[0];
+        secondaryStatus.Visible = labels.Length >= 2;
+        secondaryStatus.Text = labels.Length >= 2 ? labels[1] : "";
+        tertiaryStatus.Visible = labels.Length == 3;
+        tertiaryStatus.Text = labels.Length == 3 ? labels[2] : "";
 
-        string trayLabel = both ? "Mouse " + mouse.Percent + "% · Audífonos " + headphones.Percent + "%" : status.Text;
+        string trayLabel = labels.Length < 2 ? status.Text : string.Join(" · ", visible.Select(Summarize));
         tray.Text = trayLabel.Length > 63 ? trayLabel.Substring(0, 60) + "…" : trayLabel;
-        string indicatorLabel = both ? mouseLabel + Environment.NewLine + headphonesLabel : status.Text;
-        indicator.SetLevels(mouse == null ? (int?)null : mouse.Percent,
-            headphones == null ? (int?)null : headphones.Percent, indicatorLabel);
+        indicator.SetLevels(mouse == null ? null : mouse.Level, headphones == null ? null : headphones.Level,
+            controller == null ? null : controller.Level, labels.Length == 0 ? message : string.Join(Environment.NewLine, labels));
 
-        BatteryReading primary = mouse ?? headphones;
-        int? percent = primary == null ? (int?)null : primary.Percent;
-        if (icon != null && displayedPercent == percent)
+        BatteryReading primary = visible.FirstOrDefault();
+        string level = primary == null ? null : primary.Level;
+        if (icon != null && displayedLevel == level)
             return;
 
         Icon previous = icon;
-        icon = MakeIcon(percent);
-        displayedPercent = percent;
+        icon = MakeIcon(primary);
+        displayedLevel = level;
         tray.Icon = icon;
         if (previous != null)
             previous.Dispose();
     }
 
-    private static string Describe(BatteryReading reading)
+    private static string Summarize(BatteryReading reading)
     {
-        return reading.Name + " · " + reading.Percent + "%";
+        string name = reading.Kind == PeripheralKind.Mouse ? "Mouse" :
+            reading.Kind == PeripheralKind.Headphones ? "Audífonos" : "Mando";
+        return name + " " + reading.Level;
     }
 
     private void PlaceIndicator()
@@ -331,15 +343,16 @@ internal sealed class BatteryTray : ApplicationContext
         }
     }
 
-    private static Icon MakeIcon(int? percent)
+    private static Icon MakeIcon(BatteryReading reading)
     {
+        int? percent = reading == null ? null : reading.Percent;
         Color background = Color.FromArgb(23, 49, 61);
         if (percent <= 10)
             background = Color.FromArgb(149, 43, 40);
         else if (percent <= 20)
             background = Color.FromArgb(122, 72, 17);
 
-        string number = percent.HasValue ? percent.Value.ToString() : "–";
+        string number = percent.HasValue ? percent.Value.ToString() : reading == null ? "–" : reading.Level.Substring(0, 1);
         using (var bitmap = new Bitmap(32, 32, PixelFormat.Format32bppArgb))
         using (Graphics graphics = Graphics.FromImage(bitmap))
         using (var badge = new SolidBrush(background))

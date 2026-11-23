@@ -28,12 +28,13 @@ internal static class LogitechProtocolTests
             TestHeadsetReports();
             TestBluetoothAudioClassification();
             TestStandardBatteryPercent();
+            TestControllerBattery();
             TestIndependentSelectionAndRendering();
             TestWindowsTransport();
             TestBootUpdatePolicy();
             TestReleaseSelection();
             TestUpdateHash();
-            Console.WriteLine("HuBattery: 17 pruebas aprobadas.");
+            Console.WriteLine("HuBattery: 18 pruebas aprobadas.");
             return 0;
         }
         catch (InvalidOperationException error)
@@ -271,6 +272,35 @@ internal static class LogitechProtocolTests
             "Lectura incorrecta de carga relativa o del rango HID.");
     }
 
+    private static void TestControllerBattery()
+    {
+        var sense = new byte[64];
+        sense[0] = 1;
+        sense[53] = 0x16;
+        var shock = new byte[64];
+        shock[0] = 1;
+        shock[30] = 0x1B;
+        byte[] bluetooth = new byte[78];
+        bluetooth[0] = 0x31;
+        bluetooth[54] = 0x09;
+        Buffer.BlockCopy(new byte[] { 0x69, 0xBC, 0x20, 0xE4 }, 0, bluetooth, 74, 4);
+        Verify(ControllerBattery.DecodeSony(0x0CE6, sense) == 65 &&
+            ControllerBattery.DecodeSony(0x0DF2, sense) == 65 &&
+            ControllerBattery.DecodeSony(0x09CC, shock) == 100 &&
+            ControllerBattery.DecodeSony(0x0CE6, bluetooth) == 95 &&
+            ControllerBattery.DecodeSony(0x0CE6, new byte[] { 1, 0, 0 }) == null,
+            "El lector de PlayStation no interpretó los formatos USB y Bluetooth.");
+        bluetooth[54] ^= 1;
+        sense[53] = 0xF3;
+        Verify(ControllerBattery.DecodeSony(0x0CE6, bluetooth) == null &&
+            ControllerBattery.DecodeSony(0x0CE6, sense) == null &&
+            ControllerBattery.XInputLevel(2, 1) == "Baja" &&
+            ControllerBattery.XInputLevel(3, 3) == "Alta" &&
+            ControllerBattery.XInputLevel(1, 3) == null &&
+            ControllerBattery.XInputLevel(0xFF, 0) == null,
+            "Se aceptó una batería inválida de PlayStation o XInput.");
+    }
+
     private static void TestIndependentSelectionAndRendering()
     {
         var headphones = new BatteryReading("h1", "Audífonos A", 0, "Bluetooth", PeripheralKind.Headphones);
@@ -285,9 +315,9 @@ internal static class LogitechProtocolTests
         using (var menu = new ContextMenuStrip())
         using (var indicator = new TaskbarIndicator(menu, () => { }))
         {
-            indicator.SetLevels(null, headphones.Percent, "Audífonos");
+            indicator.SetLevels(null, headphones.Level, null, "Audífonos");
             Verify(indicator.LogicalWidth == 64, "Audífonos solos deben ocupar un segmento.");
-            indicator.SetLevels(mouse.Percent, preferred.Percent, "Mouse y audífonos");
+            indicator.SetLevels(mouse.Level, preferred.Level, null, "Mouse y audífonos");
             Verify(indicator.LogicalWidth == 128, "Mouse y audífonos deben ocupar dos segmentos.");
             using (var bitmap = new Bitmap(128, 24))
             {
@@ -295,7 +325,16 @@ internal static class LogitechProtocolTests
                 Verify(bitmap.GetPixel(72, 15).A > 100 || bitmap.GetPixel(70, 15).A > 100,
                     "El símbolo de audífonos no se dibujó en su segmento.");
             }
-            indicator.SetLevels(mouse.Percent, null, "Mouse");
+            indicator.SetLevels(mouse.Level, preferred.Level, "Media", "Los tres");
+            Verify(indicator.LogicalWidth == 192, "Tres dispositivos deben ocupar tres segmentos.");
+            using (var bitmap = new Bitmap(192, 24))
+            {
+                indicator.DrawIndicator(bitmap, 96, Color.White);
+                Verify(bitmap.GetPixel(136, 11).A > 100, "El símbolo del mando no se dibujó en su segmento.");
+            }
+            indicator.SetLevels(null, null, "Media", "Mando");
+            Verify(indicator.LogicalWidth == 64, "Un mando solo debe ocupar un segmento.");
+            indicator.SetLevels(mouse.Level, null, null, "Mouse");
             Verify(indicator.LogicalWidth == 64, "Mouse solo debe volver a ocupar un segmento.");
         }
     }
